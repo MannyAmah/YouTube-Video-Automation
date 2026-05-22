@@ -36,7 +36,12 @@ class YouTubeAutomationAgent {
       // Load credentials
       this.logger.info('Loading credentials...');
       this.credentials = new CredentialManager();
-      const credentialsValid = await this.credentials.validateAll();
+      let credentialsValid = await this.credentials.validateAll();
+      
+      if (process.env.BYPASS_CREDENTIALS === 'true') {
+        this.logger.warn('⚠️ BYPASS_CREDENTIALS is enabled! Running in development mockup/sandbox mode.');
+        credentialsValid = true;
+      }
       
       if (!credentialsValid) {
         console.log(chalk.yellow('\n⚠️  Some credentials are missing or invalid.'));

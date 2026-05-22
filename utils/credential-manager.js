@@ -135,6 +135,9 @@ class CredentialManager {
   }
 
   getYouTubeAuth() {
+    if (process.env.BYPASS_CREDENTIALS === 'true') {
+      return {};
+    }
     if (!this.credentials.youtube || !this.tokens.youtube) {
       throw new Error('YouTube credentials not configured');
     }
@@ -150,6 +153,54 @@ class CredentialManager {
   }
 
   getYouTubeClient() {
+    if (process.env.BYPASS_CREDENTIALS === 'true') {
+      return {
+        videos: {
+          list: async () => ({
+            data: {
+              items: [
+                {
+                  id: 'vid_123',
+                  snippet: {
+                    title: 'How Autonomous AI Agents Build Startups 24/7',
+                    tags: ['AI', 'Tech', 'Startups'],
+                    categoryId: '28',
+                    publishedAt: new Date().toISOString()
+                  },
+                  statistics: {
+                    viewCount: '154200',
+                    likeCount: '8520'
+                  }
+                },
+                {
+                  id: 'vid_456',
+                  snippet: {
+                    title: 'Quantitative Finance & Algorithmic Trading Systems',
+                    tags: ['Trading', 'Quant', 'Finance'],
+                    categoryId: '22',
+                    publishedAt: new Date().toISOString()
+                  },
+                  statistics: {
+                    viewCount: '98400',
+                    likeCount: '4210'
+                  }
+                }
+              ]
+            }
+          })
+        },
+        search: {
+          list: async () => ({
+            data: {
+              items: [
+                { id: { videoId: 'vid_123' }, snippet: { title: 'AI agent tutorial' } },
+                { id: { videoId: 'vid_456' }, snippet: { title: 'Trading agent tutorial' } }
+              ]
+            }
+          })
+        }
+      };
+    }
     const auth = this.getYouTubeAuth();
     return google.youtube({ version: 'v3', auth });
   }
