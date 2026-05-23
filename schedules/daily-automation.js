@@ -25,63 +25,71 @@ class DailyAutomation {
   async setupScheduledTasks() {
     // Daily content generation at 6:00 AM
     this.scheduledTasks.set('daily-content-generation', 
-      cron.schedule('0 6 * * *', async () => {
+      this.createScheduledTask('daily-content-generation', '0 6 * * *', async () => {
         if (this.isEnabled) {
           await this.runDailyContentGeneration();
         }
-      }, { scheduled: false })
+      })
     );
 
     // Publishing queue processing every 15 minutes
     this.scheduledTasks.set('publish-queue-processing',
-      cron.schedule('*/15 * * * *', async () => {
+      this.createScheduledTask('publish-queue-processing', '*/15 * * * *', async () => {
         if (this.isEnabled) {
           await this.processPublishQueue();
         }
-      }, { scheduled: false })
+      })
     );
 
     // Analytics collection at 9:00 AM daily
     this.scheduledTasks.set('daily-analytics',
-      cron.schedule('0 9 * * *', async () => {
+      this.createScheduledTask('daily-analytics', '0 9 * * *', async () => {
         if (this.isEnabled) {
           await this.collectDailyAnalytics();
         }
-      }, { scheduled: false })
+      })
     );
 
     // Weekly strategy review on Sundays at 8:00 AM
     this.scheduledTasks.set('weekly-strategy-review',
-      cron.schedule('0 8 * * 0', async () => {
+      this.createScheduledTask('weekly-strategy-review', '0 8 * * 0', async () => {
         if (this.isEnabled) {
           await this.weeklyStrategyReview();
         }
-      }, { scheduled: false })
+      })
     );
 
     // Optimization tasks daily at 10:00 PM
     this.scheduledTasks.set('daily-optimization',
-      cron.schedule('0 22 * * *', async () => {
+      this.createScheduledTask('daily-optimization', '0 22 * * *', async () => {
         if (this.isEnabled) {
           await this.runDailyOptimization();
         }
-      }, { scheduled: false })
+      })
     );
 
     // Database maintenance weekly on Saturdays at 3:00 AM
     this.scheduledTasks.set('database-maintenance',
-      cron.schedule('0 3 * * 6', async () => {
+      this.createScheduledTask('database-maintenance', '0 3 * * 6', async () => {
         if (this.isEnabled) {
           await this.databaseMaintenance();
         }
-      }, { scheduled: false })
+      })
     );
 
     // Start all scheduled tasks
-    this.scheduledTasks.forEach((task, name) => {
-      task.start();
+    for (const [name, task] of this.scheduledTasks.entries()) {
+      await task.start();
       this.logger.info(`Started scheduled task: ${name}`);
-    });
+    }
+  }
+
+  createScheduledTask(name, expression, handler) {
+    if (typeof cron.createTask === 'function') {
+      return cron.createTask(expression, handler, { name, noOverlap: true });
+    }
+
+    return cron.schedule(expression, handler, { scheduled: false });
   }
 
   async runDailyContentGeneration() {
@@ -502,9 +510,9 @@ class DailyAutomation {
     }
 
     // Check scheduled tasks
-    this.scheduledTasks.forEach((task, name) => {
-      health.scheduledTasks[name] = task.running;
-    });
+    for (const [name, task] of this.scheduledTasks.entries()) {
+      health.scheduledTasks[name] = await this.isTaskActive(task);
+    }
 
     // Get system resources (simplified)
     health.systemResources = {
@@ -552,10 +560,10 @@ class DailyAutomation {
   }
 
   async stopAutomation() {
-    this.scheduledTasks.forEach((task, name) => {
-      task.stop();
+    for (const [name, task] of this.scheduledTasks.entries()) {
+      await task.stop();
       this.logger.info(`Stopped scheduled task: ${name}`);
-    });
+    }
     
     this.isEnabled = false;
     this.logger.info('All automation tasks stopped');
@@ -566,15 +574,30 @@ class DailyAutomation {
   }
 
   async getAutomationStatus() {
+    const scheduledTasks = [];
+
+    for (const [name, task] of this.scheduledTasks.entries()) {
+      scheduledTasks.push({
+        name,
+        running: await this.isTaskActive(task)
+      });
+    }
+
     return {
       enabled: this.isEnabled,
-      scheduledTasks: Array.from(this.scheduledTasks.keys()).map(name => ({
-        name,
-        running: this.scheduledTasks.get(name).running
-      })),
+      scheduledTasks,
       lastHealthCheck: this.lastHealthCheck,
       uptime: process.uptime()
     };
+  }
+
+  async isTaskActive(task) {
+    if (typeof task.getStatus === 'function') {
+      const status = await task.getStatus();
+      return status === 'idle' || status === 'running';
+    }
+
+    return Boolean(task.running);
   }
 }
 

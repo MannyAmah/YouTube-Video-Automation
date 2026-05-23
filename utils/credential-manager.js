@@ -371,34 +371,84 @@ class CredentialManager {
 
   // Validation methods
   async validateAll() {
-    try {
-      await this.loadCredentials();
-      await this.loadTokens();
-    } catch (error) {
-      // Files might not exist yet
-    }
+    const setupStatus = await this.getSetupStatus();
 
-    const requiredCredentials = ['youtube', 'openai'];
-    const missing = [];
-
-    for (const service of requiredCredentials) {
-      if (!this.credentials[service]) {
-        missing.push(service);
-      }
-    }
-
-    if (missing.length > 0) {
-      console.log(chalk.yellow(`\n⚠️  Missing credentials for: ${missing.join(', ')}`));
-      return false;
-    }
-
-    // Validate YouTube tokens
-    if (!this.tokens.youtube) {
-      console.log(chalk.yellow('\n⚠️  YouTube authentication required'));
+    if (!setupStatus.configured) {
+      console.log(chalk.yellow(`\n⚠️  Missing setup: ${setupStatus.missing.join(', ')}`));
       return false;
     }
 
     return true;
+  }
+
+  async getSetupStatus() {
+    try {
+      await this.loadCredentials();
+      await this.loadTokens();
+    } catch (error) {
+      // Missing setup files are expected before the first production setup.
+    }
+
+    const missing = [];
+
+    if (!this.hasConfiguredYouTubeCredentials()) {
+      missing.push('YouTube OAuth client credentials');
+    }
+
+    if (!this.tokens.youtube) {
+      missing.push('YouTube OAuth tokens');
+    }
+
+    if (!this.hasConfiguredAIProvider()) {
+      missing.push('OpenAI or Gemini API credentials');
+    }
+
+    return {
+      configured: missing.length === 0,
+      missing,
+      providers: {
+        youtube: this.hasConfiguredYouTubeCredentials() && Boolean(this.tokens.youtube),
+        openai: this.hasConfiguredOpenAI(),
+        gemini: this.hasConfiguredGemini()
+      }
+    };
+  }
+
+  hasConfiguredYouTubeCredentials() {
+    const youtube = this.credentials.youtube;
+    return Boolean(
+      youtube &&
+      this.isRealValue(youtube.client_id) &&
+      this.isRealValue(youtube.client_secret) &&
+      Array.isArray(youtube.redirect_uris) &&
+      this.isRealValue(youtube.redirect_uris[0])
+    );
+  }
+
+  hasConfiguredAIProvider() {
+    return this.hasConfiguredOpenAI() || this.hasConfiguredGemini();
+  }
+
+  hasConfiguredOpenAI() {
+    return Boolean(this.credentials.openai && this.isRealValue(this.credentials.openai.apiKey));
+  }
+
+  hasConfiguredGemini() {
+    return Boolean(this.credentials.gemini && this.isRealValue(this.credentials.gemini.apiKey));
+  }
+
+  isRealValue(value) {
+    if (!value || typeof value !== 'string') return false;
+
+    const normalized = value.trim().toLowerCase();
+    return Boolean(
+      normalized &&
+      !normalized.includes('your-') &&
+      !normalized.includes('your_') &&
+      !normalized.includes('replace') &&
+      !normalized.includes('here') &&
+      !normalized.startsWith('xxx')
+    );
   }
 
   async testConnections() {
@@ -427,13 +477,10 @@ class CredentialManager {
     // Test OpenAI API
     if (this.credentials.openai) {
       try {
-        const { Configuration, OpenAIApi } = require('openai');
-        const configuration = new Configuration({
-          apiKey: this.credentials.openai.apiKey,
-        });
-        const openai = new OpenAIApi(configuration);
-        
-        await openai.listModels();
+        const OpenAI = require('openai');
+        const openai = new OpenAI({ apiKey: this.credentials.openai.apiKey });
+
+        await openai.models.list();
         results.openai = true;
         console.log(chalk.green('✅ OpenAI API connection successful'));
       } catch (error) {

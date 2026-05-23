@@ -97,8 +97,8 @@ This system runs 24/7 to:
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/darkzOGx/youtube-automation-agent.git
-   cd youtube-automation-agent
+   git clone https://github.com/MannyAmah/YouTube-Video-Automation.git
+   cd YouTube-Video-Automation
    npm install
    ```
 
@@ -125,6 +125,59 @@ This system runs 24/7 to:
 
 4. **Access the dashboard**
    Open http://localhost:3456 in your browser
+
+## 🌐 Launch Modes
+
+This app now supports two launch states:
+
+### Setup Mode
+
+The server boots even when YouTube OAuth tokens or AI provider keys are missing.
+The dashboard, `/health`, `/schedule`, and `/analytics` remain available, while
+content generation and publishing return a clear `setup_required` response.
+
+This is the right mode for a public preview, onboarding, and deployment checks.
+
+### Automation Mode
+
+Automation starts only after all required setup is present:
+
+- YouTube OAuth client credentials in `config/credentials.json`
+- YouTube OAuth tokens in `config/tokens.json`
+- At least one AI provider key, either OpenAI or Gemini
+
+For safety, set `DEFAULT_PRIVACY_STATUS=private` for first production runs. Switch
+to `unlisted` or `public` only after you have reviewed generated content and channel
+policy fit.
+
+## 🚢 Deployment
+
+### Persistent Host, Recommended For Real Automation
+
+Use Render, Fly.io, Railway, a VPS, or any Docker-capable host for the actual
+24/7 worker. The repo includes:
+
+- `Dockerfile`
+- `.dockerignore`
+- `render.yaml`
+
+Render blueprint setup:
+
+1. Push this repo to GitHub.
+2. Create a Render Blueprint from `render.yaml`.
+3. Add private secret values for AI provider keys.
+4. Upload or provision `config/credentials.json` and `config/tokens.json` securely.
+5. Keep the persistent disk mounted at `/opt/render/project/src/data` so SQLite
+   survives restarts and deploys.
+
+### Vercel Preview
+
+The repo also includes `api/index.js` and `vercel.json` for a live setup/status
+preview on Vercel.
+
+Use Vercel only for setup mode and dashboard checks. Vercel serverless functions
+are not the right home for the background scheduler, long-running generation jobs,
+or durable SQLite storage.
 
 ## 🎯 Use Cases
 

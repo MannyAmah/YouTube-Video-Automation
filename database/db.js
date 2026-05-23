@@ -1,23 +1,34 @@
-const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs').promises;
 const { Logger } = require('../utils/logger');
 
 class Database {
   constructor() {
-    this.dbPath = path.join(__dirname, '..', 'data', 'youtube_automation.db');
+    this.memoryMode = process.env.DATABASE_ADAPTER === 'memory' || Boolean(process.env.VERCEL);
+    this.dbPath = process.env.DATABASE_PATH ||
+      (process.env.VERCEL
+        ? path.join('/tmp', 'youtube_automation.db')
+        : path.join(__dirname, '..', 'data', 'youtube_automation.db'));
     this.db = null;
+    this.memory = this.createMemoryStore();
     this.logger = new Logger('Database');
   }
 
   async initialize() {
     try {
       this.logger.info('Initializing database...');
+
+      if (this.memoryMode) {
+        await this.insertDefaultSettings();
+        this.logger.success('In-memory database initialized successfully');
+        return true;
+      }
       
       // Ensure data directory exists
       await fs.mkdir(path.dirname(this.dbPath), { recursive: true });
       
       // Connect to database
+      const sqlite3 = require('sqlite3').verbose();
       this.db = new sqlite3.Database(this.dbPath);
       
       // Create tables
@@ -29,6 +40,13 @@ class Database {
       this.logger.error('Failed to initialize database:', error);
       throw error;
     }
+  }
+
+  createMemoryStore() {
+    return {
+      settings: new Map(),
+      automationEvents: []
+    };
   }
 
   async createTables() {
@@ -183,6 +201,15 @@ class Database {
         value TEXT NOT NULL,
         description TEXT,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      // Automation Events
+      `CREATE TABLE IF NOT EXISTS automation_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        data TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
       )`
     ];
 
@@ -329,6 +356,8 @@ class Database {
         production.estimatedDuration
       ]
     );
+
+    return production.id;
   }
 
   async updateProductionData(production) {
@@ -542,6 +571,10 @@ class Database {
   }
 
   async executeQuery(query, params = []) {
+    if (this.memoryMode) {
+      return this.executeMemoryQuery(query, params);
+    }
+
     return new Promise((resolve, reject) => {
       this.db.run(query, params, function(error) {
         if (error) {
@@ -554,6 +587,10 @@ class Database {
   }
 
   async getRow(query, params = []) {
+    if (this.memoryMode) {
+      return this.getMemoryRow(query, params);
+    }
+
     return new Promise((resolve, reject) => {
       this.db.get(query, params, (error, row) => {
         if (error) {
@@ -566,6 +603,10 @@ class Database {
   }
 
   async getAllRows(query, params = []) {
+    if (this.memoryMode) {
+      return this.getMemoryRows(query, params);
+    }
+
     return new Promise((resolve, reject) => {
       this.db.all(query, params, (error, rows) => {
         if (error) {
@@ -578,6 +619,10 @@ class Database {
   }
 
   async close() {
+    if (this.memoryMode) {
+      return;
+    }
+
     if (this.db) {
       return new Promise((resolve) => {
         this.db.close((error) => {
@@ -592,6 +637,11 @@ class Database {
 
   async backup() {
     try {
+      if (this.memoryMode) {
+        this.logger.info('Skipping database backup in in-memory mode');
+        return null;
+      }
+
       const backupPath = path.join(
         path.dirname(this.dbPath),
         `backup_${Date.now()}.db`
@@ -634,6 +684,10 @@ class Database {
   }
 
   async getDatabaseSize() {
+    if (this.memoryMode) {
+      return 'in-memory';
+    }
+
     try {
       const fs = require('fs').promises;
       const stats = await fs.stat(this.dbPath);
@@ -641,6 +695,70 @@ class Database {
     } catch (error) {
       return 'Unknown';
     }
+  }
+
+  async executeMemoryQuery(query, params = []) {
+    const normalized = query.replace(/\s+/g, ' ').trim().toLowerCase();
+
+    if (normalized.startsWith('insert or ignore into settings')) {
+      const [key, value, description] = params;
+      if (!this.memory.settings.has(key)) {
+        this.memory.settings.set(key, { key, value, description, updated_at: new Date().toISOString() });
+      }
+      return { lastID: 0, changes: 1 };
+    }
+
+    if (normalized.startsWith('insert or replace into settings')) {
+      const [key, value, description] = params;
+      const existing = this.memory.settings.get(key);
+      this.memory.settings.set(key, {
+        key,
+        value,
+        description: description || existing?.description || null,
+        updated_at: new Date().toISOString()
+      });
+      return { lastID: 0, changes: 1 };
+    }
+
+    if (normalized.startsWith('insert into automation_events')) {
+      this.memory.automationEvents.push({
+        event_type: params[0],
+        status: params[1],
+        data: params[2],
+        created_at: new Date().toISOString()
+      });
+      return { lastID: this.memory.automationEvents.length, changes: 1 };
+    }
+
+    return { lastID: 0, changes: 0 };
+  }
+
+  async getMemoryRow(query, params = []) {
+    const normalized = query.replace(/\s+/g, ' ').trim().toLowerCase();
+
+    if (normalized === 'select 1') {
+      return { '1': 1 };
+    }
+
+    if (normalized.startsWith('select value from settings where key = ?')) {
+      return this.memory.settings.get(params[0]) || null;
+    }
+
+    if (normalized.includes('count(*) as count')) {
+      return { count: 0 };
+    }
+
+    return null;
+  }
+
+  async getMemoryRows(query) {
+    const normalized = query.replace(/\s+/g, ' ').trim().toLowerCase();
+
+    if (normalized.startsWith('select * from settings')) {
+      return Array.from(this.memory.settings.values());
+    }
+
+    return [];
   }
 }
 

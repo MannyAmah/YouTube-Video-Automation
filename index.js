@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const path = require('path');
 const { Logger } = require('./utils/logger');
@@ -21,6 +23,11 @@ class YouTubeAutomationAgent {
     this.agents = {};
     this.app = express();
     this.isInitialized = false;
+    this.automationActive = false;
+    this.setupStatus = { configured: false, missing: ['Setup has not run yet'], providers: {} };
+    this.scheduler = null;
+    this.apiConfigured = false;
+    this.startedAt = Date.now();
   }
 
   async initialize() {
@@ -37,26 +44,31 @@ class YouTubeAutomationAgent {
       this.logger.info('Loading credentials...');
       this.credentials = new CredentialManager();
       const credentialsValid = await this.credentials.validateAll();
+      this.setupStatus = await this.credentials.getSetupStatus();
+
+      // Setup API endpoints before agent initialization so setup mode can still
+      // serve the dashboard, health checks, and clear setup guidance.
+      this.setupAPI();
       
       if (!credentialsValid) {
-        console.log(chalk.yellow('\n⚠️  Some credentials are missing or invalid.'));
+        this.isInitialized = true;
+        this.automationActive = false;
+        console.log(chalk.yellow('\n⚠️  Setup mode active. Automation is paused.'));
         console.log(chalk.yellow('Run: npm run credentials:setup'));
-        return false;
+        return true;
       }
       
       // Initialize agents
       this.logger.info('Initializing agents...');
       await this.initializeAgents();
-      
-      // Setup API endpoints
-      this.setupAPI();
-      
+
       // Initialize scheduler
       this.logger.info('Setting up automation scheduler...');
       this.scheduler = new DailyAutomation(this.agents, this.db);
       await this.scheduler.initialize();
       
       this.isInitialized = true;
+      this.automationActive = true;
       this.logger.success('YouTube Automation Agent initialized successfully!');
       
       return true;
@@ -85,6 +97,8 @@ class YouTubeAutomationAgent {
   }
 
   setupAPI() {
+    if (this.apiConfigured) return;
+
     this.app.use(express.json());
     this.app.use(express.static(path.join(__dirname, 'dashboard')));
     
@@ -95,17 +109,16 @@ class YouTubeAutomationAgent {
     
     // Health check
     this.app.get('/health', (req, res) => {
-      res.json({
-        status: 'healthy',
-        initialized: this.isInitialized,
-        agents: Object.keys(this.agents),
-        timestamp: new Date().toISOString()
-      });
+      res.json(this.getHealthPayload());
     });
 
     // Manual content generation
     this.app.post('/generate', async (req, res) => {
       try {
+        if (!this.automationActive) {
+          return res.status(503).json(this.getSetupRequiredResponse('Content generation is paused until setup is complete.'));
+        }
+
         const { topic, style, length } = req.body;
         const result = await this.generateContent(topic, style, length);
         res.json({ success: true, result });
@@ -117,6 +130,17 @@ class YouTubeAutomationAgent {
     // Get analytics
     this.app.get('/analytics', async (req, res) => {
       try {
+        if (!this.automationActive) {
+          const stats = await this.db.getStats();
+          return res.json({
+            setupRequired: true,
+            totalVideos: stats.productions,
+            publishedVideos: stats.published,
+            averagePerformanceScore: null,
+            message: 'Analytics will activate after YouTube credentials and tokens are configured.'
+          });
+        }
+
         const analytics = await this.agents.analytics.getRecentAnalytics();
         res.json(analytics);
       } catch (error) {
@@ -137,6 +161,10 @@ class YouTubeAutomationAgent {
     // Manual publish
     this.app.post('/publish/:contentId', async (req, res) => {
       try {
+        if (!this.automationActive) {
+          return res.status(503).json(this.getSetupRequiredResponse('Publishing is paused until setup is complete.'));
+        }
+
         const { contentId } = req.params;
         const result = await this.agents.publishing.publishContent(contentId);
         res.json({ success: true, result });
@@ -144,6 +172,36 @@ class YouTubeAutomationAgent {
         res.status(500).json({ success: false, error: error.message });
       }
     });
+
+    this.apiConfigured = true;
+  }
+
+  getHealthPayload() {
+    const agentNames = Object.keys(this.agents);
+
+    return {
+      status: this.isInitialized ? 'healthy' : 'starting',
+      mode: this.automationActive ? 'automation' : 'setup',
+      initialized: this.isInitialized,
+      configured: Boolean(this.setupStatus.configured),
+      automationActive: this.automationActive,
+      agents: agentNames,
+      expectedAgents: 7,
+      missingSetup: this.setupStatus.missing || [],
+      providers: this.setupStatus.providers || {},
+      uptimeSeconds: Math.floor((Date.now() - this.startedAt) / 1000),
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  getSetupRequiredResponse(message) {
+    return {
+      success: false,
+      code: 'setup_required',
+      message,
+      missingSetup: this.setupStatus.missing || [],
+      nextStep: 'Run npm run credentials:setup locally, then deploy the credentials as private environment or secret files on a persistent host.'
+    };
   }
 
   async generateContent(topic = null, style = null, length = 'medium') {
@@ -202,7 +260,11 @@ class YouTubeAutomationAgent {
       console.log(chalk.white('📅 Schedule: ') + chalk.cyan(`http://localhost:${PORT}/schedule`));
       console.log(chalk.white('📈 Analytics: ') + chalk.cyan(`http://localhost:${PORT}/analytics`));
       console.log(chalk.gray('─'.repeat(50)));
-      console.log(chalk.yellow('\n🤖 Automation is active. Content will be generated and posted daily.'));
+      if (this.automationActive) {
+        console.log(chalk.yellow('\n🤖 Automation is active. Content will be generated and posted daily.'));
+      } else {
+        console.log(chalk.yellow('\n⚙️  Setup mode is active. Configure credentials to start automation.'));
+      }
     });
   }
 }

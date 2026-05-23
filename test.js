@@ -1,6 +1,7 @@
 const { Database } = require('./database/db');
 const { Logger } = require('./utils/logger');
 const { CredentialManager } = require('./utils/credential-manager');
+const { YouTubeAutomationAgent } = require('./index');
 const chalk = require('chalk');
 const path = require('path');
 
@@ -19,7 +20,8 @@ class SystemTest {
       { name: 'Logger System', test: () => this.testLogger() },
       { name: 'Directory Structure', test: () => this.testDirectories() },
       { name: 'Agent Loading', test: () => this.testAgentLoading() },
-      { name: 'Configuration Files', test: () => this.testConfiguration() }
+      { name: 'Configuration Files', test: () => this.testConfiguration() },
+      { name: 'Setup Mode Startup', test: () => this.testSetupModeStartup() }
     ];
 
     let passed = 0;
@@ -147,6 +149,34 @@ class SystemTest {
     await fs.access('./index.js');
 
     this.logger.info('Configuration test completed successfully');
+  }
+
+  async testSetupModeStartup() {
+    const agent = new YouTubeAutomationAgent();
+    const initialized = await agent.initialize();
+
+    if (!initialized) {
+      throw new Error('Application did not initialize');
+    }
+
+    const health = agent.getHealthPayload();
+    if (health.status !== 'healthy') {
+      throw new Error(`Unexpected health status: ${health.status}`);
+    }
+
+    if (!['setup', 'automation'].includes(health.mode)) {
+      throw new Error(`Unexpected runtime mode: ${health.mode}`);
+    }
+
+    if (health.mode === 'setup' && health.automationActive) {
+      throw new Error('Setup mode should not report active automation');
+    }
+
+    if (agent.db) {
+      await agent.db.close();
+    }
+
+    this.logger.info('Setup mode startup test completed successfully');
   }
 }
 

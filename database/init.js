@@ -5,9 +5,9 @@ const { Database } = require('./db');
     const db = new Database();
     await db.initialize();
     await db.close();
-    console.log("✓ Database initialized successfully!");
+    console.log('Database initialized successfully.');
   } catch (error) {
-    console.error("❌ Database initialization failed:", error);
+    console.error('Database initialization failed:', error);
     process.exit(1);
   }
 })();
