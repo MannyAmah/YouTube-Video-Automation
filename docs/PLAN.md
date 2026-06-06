@@ -287,6 +287,8 @@ The build and operation lean on the installed skill packs:
 **Phase 1 — Script→render spine + library kickoff (weeks 2–4, parallel tracks)**
 - *Software:* Topic Scout (v1, scoped to the T2D wedge), Script Writer → beats + SSML, **Fact-Check layer + claim ledger** (early — it's core), Storyboard → `motion_spec`, `docs/STYLE.md`.
 - *Software — parametrization framework (named deliverable):* build the **`motion_spec` schema → Remotion parametric-module framework** — the engine that turns an illustrator's vector art into a parameter-driven animated module (ligand docking, channel opening) from `motion_spec`. A mechanism module = **art (illustrator) + engineering (this framework + per-module wiring)**; §5.3/§10.3 book the art role, this names the engineering role. First 2–3 T2D modules are its proof.
+  - **DoD (framework):** `motion_spec` params are validated against the registered module's schema **at storyboard-emit time**, not only at render — a bad spec fails before it's queued, so the failure surfaces early, not a stage late.
+- *DoD — first `supabase db push`:* the migration is not "done" until an **anon read/write-denied behavior test** passes against the live DB (attempt an anonymous read and write; confirm both are denied) **before any real data flows**. Source-level RLS ≠ verified RLS.
 - *Library (parallel, the long pole):* commissioned illustrator delivers base primitives + vector art for **2–3 mechanism modules** (receptor agonism, enzyme inhibition, transport blockade) covering the T2D drug classes; Emmanuel validates each asset; engineer wires them into the framework above.
 - Exit: one end-to-end render of *one* T2D topic from real library assets through the parametric framework.
 
@@ -297,6 +299,7 @@ The build and operation lean on the installed skill packs:
 
 **Phase 3 — Human gate + soft launch (weeks 6–8)**
 - Vercel review dashboard + Telegram approval bot; YouTube publish + disclaimer.
+- **Dashboard auth — RLS row-scoping:** the Phase-1 read policy is `authenticated → all rows` (fine for a single operator). When the dashboard gets real/multiple users, **revisit RLS to scope rows per user/role** (esp. the claims ledger) before granting broader access.
 - **Soft launch:** 5–10 *real-narration* videos within the T2D wedge, ~2/week, founder authors+reviews every one. Record clone training audio. Tune quality + style.
 
 **Phase 4 — Autonomy, clone, scale (week 8+)**
