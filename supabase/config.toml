@@ -1,0 +1,10 @@
+# Supabase local config. `supabase link` against the cloud project, then
+# `supabase db push` applies migrations/. Project ref is set on link (not committed).
+project_id = "vitalis"
+
+[db]
+major_version = 15
+
+[storage]
+enabled = true
+# Buckets created on first use by the worker: voiceovers, scenes, renders, thumbnails.
