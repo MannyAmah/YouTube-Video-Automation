@@ -1,13 +1,15 @@
 # Vitalis — Clinician-Authored Medical Education YouTube Channel
 
 **Working title:** *Vitalis* (placeholder — see §2.1 for naming)
-**Owner:** Emmanuel / Livemore Health & Biosciences
+**Owner:** Emmanuel (RN). *Standalone educational project — not affiliated with any company.*
 **Repo (host):** https://github.com/MannyAmah/YouTube-Video-Automation
-**Status:** Plan **v3.1** — third Checker pass closed; Phase 0 **GO** (2026-06-06). Fixed the §9 duplicate Phase-0 block; named the `motion_spec`→Remotion parametrization-framework as a Phase-1 software deliverable (§9/§10.3); start illustrator commission in parallel with Phase 0. Rest of roadmap gated on the five §13 answers.
+**Status:** Plan **v3.2** — founder axis correction (2026-06-07). Organizing axis is now **drugs / mechanisms**, disease is *context*; the "wedge" is a **PK/PD primitive set**, not a disease cohort (§1, §2.2, §2.4, §5.3, §9). Standalone project — company references removed. Phase 0 **GO**; PR #1 still cleared.
 **Positioning:** *Clinician-authored at scale* — automated production, real RN authorship in every artifact. (Not "100% automated" — see §0.5.)
-**Last updated:** 2026-06-06
+**Last updated:** 2026-06-07
 
-> **v3 changelog (second Checker pass):** Resolved the **authoring-hours bottleneck** (§2.3 — cadence gated by RN throughput via 3–5 min voice-memo capture; honest cadence, not daily-long-form); scoped the **asset library as a real production workstream** (§5.3 build plan + composable primitives + narrow T2D launch wedge); rebuilt §9 roadmap into parallel software/library tracks; added **§10.3 library labor cost** (no longer hidden as ~$0); reframed the voice clone as **necessary-not-sufficient** + real→clone soft launch + synthetic-disclosure verify (§0.5/§2.1); cleaned the leftover **HIPAA/BAA framing** from the §4 stack table.
+> **v3.2 changelog (founder axis correction):** Reframed the organizing axis from disease to **drug/mechanism** — drug is the recurring unit, disease is context (§1). Pillars reworked: retired "Disease as a Siege", added "How It's Made" (drug-development lifecycle), "What Changes the Dose" (PK/PD modifiers) (§2.2). Topic backlog now seeded by **drug/drug-class taxonomy**, conditions as metadata (§2.4). The launch wedge is now the **universal PK/PD primitive set** (ADME path + 4 target-interaction archetypes), not a disease cohort; launch drugs deliberately *span* mechanisms (§5.3, §9). Removed all company references; this is a standalone educational project (§1 — §0.5 authorship/monetization logic is independent and unchanged).
+>
+> **v3 changelog (second Checker pass):** Resolved the **authoring-hours bottleneck** (§2.3 — cadence gated by RN throughput via 3–5 min voice-memo capture; honest cadence, not daily-long-form); scoped the **asset library as a real production workstream** (§5.3 build plan + composable primitives + a narrow launch wedge); rebuilt §9 roadmap into parallel software/library tracks; added **§10.3 library labor cost** (no longer hidden as ~$0); reframed the voice clone as **necessary-not-sufficient** + real→clone soft launch + synthetic-disclosure verify (§0.5/§2.1); cleaned the leftover **HIPAA/BAA framing** from the §4 stack table.
 >
 > **v2 changelog (first Checker pass):** Added §0.5 monetization viability; resolved the §5 illustration fork (parametric library, not raster Ken-Burns); retargeted §1 threat model (FTC/YouTube/RN-scope, not HIPAA); per-video unit-cost + Remotion Lambda (§10); monetization + ad-suitability risks (§12); RAG corpus licensing note (§6); de-rubber-stamped §13 Q4 + §14.
 
@@ -46,11 +48,9 @@ The fact-check layer (§6) protects against **content removal** (misinformation 
 
 ## 1. Vision & thesis
 
-A **clinician-authored, automated-production** YouTube channel that teaches medications and diseases through **narrative stories + anatomically grounded animated illustration**. The pipeline is fully automated; the *authorship* is human (an RN). Every video follows a patient/molecule/cell through the body so abstract pharmacology and pathophysiology become *visualizable and relatable to real human biology*.
+A **clinician-authored, automated-production** YouTube channel whose organizing axis is **drugs and their mechanisms** — how a drug works, end to end, visualized. The recurring unit is the **drug**; disease is *context*, not the bucket. The arc a video can trace: development (discovery → preclinical → trial phases → approval) → human use → **pharmacokinetics / ADME** (how the body processes it) → modifying factors (pharmacogenomics, interactions, organ function, age) → **pharmacodynamics** (mechanism of action) → diagnoses *as context* → side/adverse effects → on- and off-label uses → relevant procedures/"non-treatments". The pipeline is fully automated; the *authorship* is human (an RN). Each video makes abstract pharmacology *visualizable and relatable to real human biology*.
 
-**Why this can win (the wedge):** Medical YouTube is either (a) dry lecture slides (Osmosis, Ninja Nerd — great but academic) or (b) shallow "5 facts" listicles. Almost nobody does **story-driven, cinematic, anatomically faithful motion graphics** at daily cadence. The founder is a **registered nurse (BSN, MS Health Informatics, 8 yrs clinical)** — that clinical authority is the moat: it lets us run a fact-check layer with real rigor and build trust signals competitors can't fake.
-
-**Strategic fit with Livemore:** This channel is also a top-of-funnel content engine and a proving ground for the autonomous-agent + media-generation infrastructure that later powers Livemore patient education and the eventual paid-social ad engine (§11).
+**Why this can win (the wedge):** Medical YouTube is either (a) dry lecture slides (Osmosis, Ninja Nerd — great but academic) or (b) shallow "5 facts" listicles. Almost nobody does **story-driven, cinematic, mechanistically faithful motion graphics** of how drugs actually move through and act on the body. The founder is a **registered nurse (BSN, MS Health Informatics, 8 yrs clinical)** — that clinical authority is the moat: it lets us run a fact-check layer with real rigor and build trust signals competitors can't fake.
 
 **Non-negotiable — and aimed at the right audit.** There is **no PHI here** (synthetic patient personas, public medical facts), so HIPAA/BAA is *not* the governing frame — invoking it in v1 showed the safety design pointed at the wrong audit. The real exposures are:
 1. **FTC health-claim rules** — sharpest at Phase 5 paid ads; substantiation required for any health benefit/efficacy claim.
@@ -64,16 +64,18 @@ The fact-check layer (§6) is not optional polish — it is core product, scoped
 ## 2. Channel strategy
 
 ### 2.1 Brand & naming
-- Name candidates: *Vitalis*, *Inside the Body*, *The Body Explained*, *Microdose* (drug-focused), *Pathways* (mechanism-focused). **Decision deferred** — quick `/office-hours` naming pass + trademark/handle availability check before launch.
+- Name candidates: *Microdose* (drug-focused), *Pathways* (mechanism-focused), *Vitalis*, *Inside the Body*. With the drug/mechanism spine (§1), the **drug-/mechanism-flavored names (*Microdose*, *Pathways*) now fit best** — disease-flavored options are demoted. **Decision deferred** — quick `/office-hours` naming pass + trademark/handle availability check before launch.
 - Persona: warm, authoritative narrator ("your nurse who actually explains it"). **The voice is Emmanuel's own** — recorded for real on the soft-launch videos, then cloned (ElevenLabs Professional Voice Clone) for scale (real → clone, never stock → clone; §0.5). One locked voice = brand consistency, and it's genuinely him. The clone is necessary-not-sufficient — the authenticity load is carried by his per-video commentary (§0.5 #1).
 - One recurring visual mascot is optional. The Xiaohei repo's lesson (§5) is *style DNA over templates* — we adopt a consistent **line-art-meets-anatomical** look, not a literal character.
 
-### 2.2 Content pillars (the format menu)
-1. **"A Drug's Journey"** — follow a pill from mouth → bloodstream → target receptor → effect → elimination (pharmacokinetics/dynamics as a story). *e.g. "What Metformin actually does once you swallow it."*
-2. **"Disease as a Siege"** — a pathogen/process attacks; the body defends; treatment intervenes. *e.g. "How Type 2 Diabetes quietly rewires your metabolism."*
-3. **"Inside the Cell"** — mechanism deep-dives (receptor binding, ion channels, signaling cascades).
-4. **"The Patient Story"** — a relatable composite patient experiences symptoms → diagnosis → treatment → outcome (no real PHI, fully synthetic personas).
-5. **"Myth vs Mechanism"** — debunk a common health myth with the actual biology.
+### 2.2 Content pillars (the format menu) — drug/mechanism spine
+1. **"A Drug's Journey"** — follow a drug mouth → bloodstream → target → effect → elimination (the full ADME/PK arc as a story). *e.g. "What metformin actually does once you swallow it."*
+2. **"How It's Made"** — the drug-development lifecycle: discovery → preclinical → trial phases I–III → approval → post-market. Demystifies where drugs come from (a gap competitors ignore). *e.g. "How a molecule becomes a medicine."*
+3. **"Inside the Cell" (Mechanism of Action)** — pharmacodynamics deep-dives: receptor agonism/antagonism, enzyme inhibition, transporter/ion-channel blockade, signaling cascades.
+4. **"What Changes the Dose"** — modifying factors: pharmacogenomics, drug–drug interactions, organ (hepatic/renal) function, age. Why the same drug behaves differently in different bodies.
+5. **"On-Label, Off-Label & Adverse Effects"** — indications (incl. off-label), side/adverse effects, with diagnoses as *context* for why the drug is used. *e.g. "The off-label lives of a beta-blocker."*
+
+> Disease is **context inside these pillars**, never the bucket. The old "Disease as a Siege" framing is retired; pathophysiology appears only to explain why a drug acts where it does.
 
 ### 2.3 Cadence & formats — gated by RN authoring throughput, not compute
 
@@ -87,9 +89,10 @@ The §0.5 authenticity shield makes **Emmanuel's per-video original commentary t
 
 > **Cadence honesty rule:** never raise cadence by shortening or faking commentary. If authoring throughput is the limit, cadence drops — the signal is the product (§0.5).
 
-### 2.4 Topic sourcing
-- Trend signal: YouTube Data API search-volume + Google Trends + "most prescribed drugs" / "most searched conditions" lists.
-- Backlog seeded from a curated medical taxonomy (top 200 drugs, top 100 conditions) stored in Supabase, scored by search demand × competition gap × evergreen value.
+### 2.4 Topic sourcing — drug/drug-class taxonomy as the spine
+- Trend signal: YouTube Data API search-volume + Google Trends + "most prescribed drugs" / high-search drug lists.
+- Backlog seeded from a curated **drug / drug-class taxonomy** (top prescribed + high-search drugs) stored in Supabase, scored by search demand × competition gap × evergreen value. **Conditions are metadata on a drug** (what it treats), not a separate axis.
+- Topic eligibility is also gated by **mechanism-primitive coverage** (§5.3): a drug is producible once the library has the ADME + target-interaction primitives its story needs.
 - A `/loop`-driven **Topic Scout** agent refreshes and re-ranks the backlog weekly.
 
 ---
@@ -208,22 +211,23 @@ The v1 plan had an internal contradiction: §0 promised "animated motion graphic
 
 The deterministic-accuracy win has a price the v1/v2 cost model hid: **the library is a months-long medical-illustration production effort**, not the "one Remotion scene template" Phase 1 implies. You cannot animate drug-receptor docking for 200 drugs from one template. This reframes both scope and launch.
 
+**The wedge is a PRIMITIVE SET, not a disease.** The narrowing axis is the **mechanism primitive**, not a condition cohort — which fits the drug/mechanism spine (§1) and the modules already scaffolded (agonism/inhibition/blockade are *pharmacological*, not disease, constructs). Rationale: **~every drug = {ADME path} × {target binding + downstream effect}**, so a small set of universal PK/PD primitives unlocks broad drug coverage immediately and maximizes reuse — which was the wedge's original purpose, now aimed at the right axis.
+
 **Library architecture (composable primitives, not per-video art).** The unit of reuse is a *parametrized primitive*, so coverage compounds:
-- **Base primitives:** cells (generic + key types), organs/cross-sections, membranes, a receptor/ion-channel kit, generic drug-molecule + ligand shapes, immune actors, vessels.
-- **Mechanism modules:** parametrized templates for *classes* of action — receptor agonism/antagonism, enzyme inhibition, transport blockade, signaling cascade, inflammatory response. One well-built "receptor docking" module serves a whole drug *class*, not one drug.
-- **Composition:** a video's scene is assembled from primitives + a mechanism module configured by `motion_spec`. New drugs in a covered class ≈ near-zero new art; a new *class* or *organ system* = real production work.
+- **ADME-path primitives:** absorption; hepatic first-pass / **CYP450 metabolism**; distribution (incl. plasma-protein binding, blood–brain-barrier transit); renal clearance.
+- **Target-interaction archetypes:** receptor agonist/antagonist, enzyme inhibition, transporter/ion-channel blockade, signal-transduction cascade.
+- **Base primitives:** cells (generic + key types), organs/cross-sections, membranes, vessels, generic drug-molecule + ligand shapes.
+- **Composition:** a video's scene is assembled from {ADME path} × {target-interaction archetype} configured by `motion_spec`. A new drug that reuses covered primitives ≈ near-zero new art; a genuinely new mechanism or organ system = real production work.
 
 **Who builds & validates, at what rate.** A defined workstream, owned and budgeted (see §10.4):
-1. A medical illustrator / motion designer (contract or PT) produces primitives + modules against `docs/STYLE.md`.
-2. Emmanuel (RN) **validates each asset once** for anatomical/physiological correctness before it enters the library (this *is* the accuracy guarantee, §5.2).
-3. Target a **starter library** (~1 organ system + 2–3 mechanism modules + base primitives) before soft launch; expand ~1 system / 1–2 modules per sprint thereafter.
+1. A medical illustrator / motion designer (contract or PT) produces primitives + archetypes against `docs/STYLE.md`.
+2. Emmanuel (RN) **validates each asset once** for physiological/pharmacological correctness before it enters the library (this *is* the accuracy guarantee, §5.2).
+3. Target a **starter library = the universal PK/PD primitive set above** (ADME path + the 4 target-interaction archetypes + base primitives) before soft launch; expand as new mechanisms/organ systems are needed.
 
-**Narrow launch, expand with the library.** Launch topics are **deliberately scoped to what the starter library covers well**, then widen as coverage grows — never the reverse. Concretely:
-- **Soft-launch wedge (Phase 1–3):** one high-demand, well-bounded domain — recommended **metabolic / Type 2 Diabetes + its drug classes** (metformin, GLP-1s, SGLT2s, insulin). Huge search demand, evergreen, and the drug classes share mechanism modules → high library reuse from a small starter set.
-- **Phase 4 expansion:** add cardiovascular, then anti-infectives, etc., each gated on its library coverage.
-- §2.2 pillars stay; the *topic backlog* (§2.4) is filtered by "does the library cover this yet?" — uncovered topics queue behind library build, they don't force one-off art.
+**Launch drugs EXERCISE the primitives, deliberately spanning mechanisms.** The first videos are chosen to stress-test the primitive set across *varied* drugs — different ADME paths and different target archetypes — **not** clustered in one disease. (e.g. an oral CYP450-metabolized enzyme inhibitor, a renally-cleared receptor antagonist, a transporter blocker — exemplars, not a cohort.) Coverage widens as primitives are added.
+- §2.2 pillars stay; the *topic backlog* (§2.4) is filtered by "do the library primitives cover this drug's story yet?" — uncovered drugs queue behind primitive build, they don't force one-off art.
 
-> **Coverage rule:** a topic is only eligible for production when the library has the primitives + mechanism module to render it accurately. No topic outruns the library.
+> **Coverage rule:** a drug is only eligible for production when the library has the ADME + target-interaction primitives to render its story accurately. No drug outruns the library.
 
 ---
 
@@ -275,7 +279,7 @@ The build and operation lean on the installed skill packs:
 
 ## 9. Build roadmap (phased)
 
-> **Note on timelines:** the software spine is weeks; the **asset library (§5.3) is the long pole** — a parallel medical-illustration workstream that paces launch breadth, not the code. The wedge (T2D + its drug classes) is chosen so a *small* starter library unblocks a real launch. **Start the illustrator search/commission in parallel with Phase 0** — onboarding + style-iteration has real lead time; don't wait until week 2.
+> **Note on timelines:** the software spine is weeks; the **asset library (§5.3) is the long pole** — a parallel medical-illustration workstream that paces launch breadth, not the code. The wedge (the **PK/PD primitive set** — ADME path + target-interaction archetypes) is chosen so a *small* starter library unblocks broad drug coverage. **Start the illustrator search/commission in parallel with Phase 0** — onboarding + style-iteration has real lead time; don't wait until week 2.
 
 **Phase 0 — Foundations (week 1)** *(greenlit, reversible)*
 - `git init`, scaffold monorepo (worker + dashboard + remotion), push to `MannyAmah/YouTube-Video-Automation`.
@@ -285,26 +289,26 @@ The build and operation lean on the installed skill packs:
 - *(Parallel, off-laptop):* begin medical-illustrator search/commission — it's lead-time-bound (§5.3).
 
 **Phase 1 — Script→render spine + library kickoff (weeks 2–4, parallel tracks)**
-- *Software:* Topic Scout (v1, scoped to the T2D wedge), Script Writer → beats + SSML, **Fact-Check layer + claim ledger** (early — it's core), Storyboard → `motion_spec`, `docs/STYLE.md`.
-- *Software — parametrization framework (named deliverable):* build the **`motion_spec` schema → Remotion parametric-module framework** — the engine that turns an illustrator's vector art into a parameter-driven animated module (ligand docking, channel opening) from `motion_spec`. A mechanism module = **art (illustrator) + engineering (this framework + per-module wiring)**; §5.3/§10.3 book the art role, this names the engineering role. First 2–3 T2D modules are its proof.
+- *Software:* Topic Scout (v1, scoped to **drugs the primitive set covers**, §5.3), Script Writer → beats + SSML, **Fact-Check layer + claim ledger** (early — it's core), Storyboard → `motion_spec`, `docs/STYLE.md`.
+- *Software — parametrization framework (named deliverable):* build the **`motion_spec` schema → Remotion parametric-module framework** — the engine that turns an illustrator's vector art into a parameter-driven animated module (ligand docking, CYP450 metabolism, renal clearance) from `motion_spec`. A module = **art (illustrator) + engineering (this framework + per-module wiring)**; §5.3/§10.3 book the art role, this names the engineering role. The first PK/PD primitives are its proof.
   - **DoD (framework):** `motion_spec` params are validated against the registered module's schema **at storyboard-emit time**, not only at render — a bad spec fails before it's queued, so the failure surfaces early, not a stage late.
 - *DoD — first `supabase db push`:* the migration is not "done" until an **anon read/write-denied behavior test** passes against the live DB (attempt an anonymous read and write; confirm both are denied) **before any real data flows**. Source-level RLS ≠ verified RLS.
-- *Library (parallel, the long pole):* commissioned illustrator delivers base primitives + vector art for **2–3 mechanism modules** (receptor agonism, enzyme inhibition, transport blockade) covering the T2D drug classes; Emmanuel validates each asset; engineer wires them into the framework above.
-- Exit: one end-to-end render of *one* T2D topic from real library assets through the parametric framework.
+- *Library (parallel, the long pole):* commissioned illustrator delivers base primitives + vector art for the **universal PK/PD primitive set** (§5.3: ADME path — absorption, CYP450 first-pass, distribution, renal clearance — + the 4 target-interaction archetypes); Emmanuel validates each asset; engineer wires them into the framework above.
+- Exit: one end-to-end render of a drug's story from real primitives through the parametric framework.
 
 **Phase 2 — Assets→assembled video + capture loop (weeks 4–6)**
 - Real founder narration (soft-launch voices) → forced-alignment captions; **voice-memo commentary capture** (§2.3) wired through Telegram → transcript → claim ledger.
 - Remotion render on Railway → MP4; metadata + thumbnail; ad-suitability gate.
-- Library reaches starter-set coverage for the wedge.
+- Library reaches **starter primitive-set coverage** (ADME path + target archetypes).
 
 **Phase 3 — Human gate + soft launch (weeks 6–8)**
 - Vercel review dashboard + Telegram approval bot; YouTube publish + disclaimer.
 - **Dashboard auth — RLS row-scoping:** the Phase-1 read policy is `authenticated → all rows` (fine for a single operator). When the dashboard gets real/multiple users, **revisit RLS to scope rows per user/role** (esp. the claims ledger) before granting broader access.
-- **Soft launch:** 5–10 *real-narration* videos within the T2D wedge, ~2/week, founder authors+reviews every one. Record clone training audio. Tune quality + style.
+- **Soft launch:** 5–10 *real-narration* videos on **drugs chosen to span the primitives** (varied ADME paths + target archetypes, §5.3), ~2/week, founder authors+reviews every one. Record clone training audio. Tune quality + style.
 
 **Phase 4 — Autonomy, clone, scale (week 8+)**
 - Verify synthetic-media disclosure policy → switch to cloned voice. Crons, analytics feedback, queue auto-stocking. Shorts repurposing. Hermes monitoring handoff.
-- **Library expansion** gates topic expansion (cardiovascular → anti-infectives → …), each new system/class added before its topics go live.
+- **Library expansion** gates drug coverage: add new mechanisms/organ-system primitives as new drug stories need them — each added before its drugs go live.
 
 **Phase 5 — Social expansion (future, §11).**
 

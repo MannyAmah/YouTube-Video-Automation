@@ -17,8 +17,13 @@ create type video_status   as enum (
   'asset_gen','rendering','pending_review','approved','rejected',
   'scheduled','published','failed'
 );
+-- Pillars are drug/mechanism-axis (PLAN §2.2); disease is context, not a pillar.
 create type content_pillar as enum (
-  'drug_journey','disease_siege','inside_the_cell','patient_story','myth_vs_mechanism'
+  'drug_journey',          -- ADME/PK arc
+  'how_its_made',          -- drug-development lifecycle
+  'mechanism_of_action',   -- pharmacodynamics deep-dive
+  'dose_modifiers',        -- pharmacogenomics, interactions, organ function, age
+  'indications_effects'    -- on/off-label uses + adverse effects (diagnoses as context)
 );
 create type claim_risk     as enum ('general','clinical','high_risk');
 create type claim_status   as enum ('unverified','supported','refuted','needs_review');
@@ -29,8 +34,10 @@ create table topics (
   id              uuid primary key default gen_random_uuid(),
   title           text not null,
   pillar          content_pillar not null,
-  -- launch is scoped to the T2D wedge (§5.3); broaden as the library grows.
-  domain          text not null default 'metabolic_t2d',
+  -- the recurring unit is the DRUG; disease is metadata, not the axis (PLAN §2.4).
+  drug_class      text,                              -- e.g. 'enzyme_inhibitor', 'receptor_antagonist'
+  conditions      text[] not null default '{}',      -- what it treats — context, not the spine
+  -- eligibility is gated by PK/PD primitive coverage (§5.3), not a disease cohort.
   demand_score    numeric not null default 0,        -- search demand
   competition_gap numeric not null default 0,        -- inverse of crowding
   evergreen_score numeric not null default 0,

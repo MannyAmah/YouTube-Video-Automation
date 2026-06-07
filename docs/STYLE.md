@@ -21,5 +21,9 @@
   guarantee, §5.2). Correctness lives in the asset, not per-render inference.
 
 ## Launch scope
-- Wedge: **Type 2 Diabetes + its drug classes** (metformin, GLP-1, SGLT2, insulin).
-- Coverage rule: **no topic outruns the library.**
+- Axis: **drugs / mechanisms** — the drug is the recurring unit; disease is context (PLAN §1).
+- Wedge = the **universal PK/PD primitive set** (PLAN §5.3): ADME path (absorption,
+  CYP450 first-pass, distribution, renal clearance) + target-interaction archetypes
+  (receptor agonist/antagonist, enzyme inhibition, transporter/ion-channel blockade,
+  signal cascade). Launch drugs are chosen to **span** these primitives, not cluster in a disease.
+- Coverage rule: **no drug outruns the library.**

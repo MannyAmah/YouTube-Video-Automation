@@ -23,9 +23,13 @@ export type VideoStatus =
   | 'asset_gen' | 'rendering' | 'pending_review' | 'approved' | 'rejected'
   | 'scheduled' | 'published' | 'failed';
 
+// Drug/mechanism-axis pillars (PLAN §2.2); disease is context, not a pillar.
 export type ContentPillar =
-  | 'drug_journey' | 'disease_siege' | 'inside_the_cell'
-  | 'patient_story' | 'myth_vs_mechanism';
+  | 'drug_journey'          // ADME/PK arc
+  | 'how_its_made'          // drug-development lifecycle
+  | 'mechanism_of_action'   // pharmacodynamics deep-dive
+  | 'dose_modifiers'        // pharmacogenomics, interactions, organ function, age
+  | 'indications_effects';  // on/off-label uses + adverse effects
 
 export type ClaimRisk = 'general' | 'clinical' | 'high_risk';
 export type ClaimStatus = 'unverified' | 'supported' | 'refuted' | 'needs_review';
