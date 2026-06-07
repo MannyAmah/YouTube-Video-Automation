@@ -1,82 +1,45 @@
 # Dependencies
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+.pnpm-store/
 
-# Environment variables and credentials
-.env
-.env.local
-.env.production
-config/credentials.json
-config/tokens.json
-config/*.key
-config/*.pem
-
-# API Keys and Secrets
-*.key
-*.pem
-*.cert
-*.crt
-
-# Database
-data/*.db
-data/*.sqlite
-data/*.db-journal
-*.db-shm
-*.db-wal
-
-# Logs
-logs/
-*.log
-
-# Temporary files
-temp/
-tmp/
-uploads/
-*.tmp
-
-# OS Files
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Test coverage
-coverage/
-.nyc_output/
-
-# Build outputs
+# Build output
 dist/
 build/
+.next/
+out/
+*.tsbuildinfo
 
-# YouTube specific
+# Remotion
+remotion/out/
+packages/remotion/out/
+
+# Env & secrets (Iron Law #4 — never commit secrets)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+service-account*.json
+youtube-credentials*.json
+token*.json
+
+# Supabase
+supabase/.branches/
+supabase/.temp/
+
+# Local media / render artifacts
 *.mp4
-*.mp3
+*.mov
 *.wav
-*.webm
-*.mkv
-*.avi
+*.mp3
+/tmp-render/
+assets-cache/
 
-# Image files (except examples)
-*.jpg
-*.jpeg
-*.png
-*.gif
-!examples/*.png
-!examples/*.jpg
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+*.log
 
-# Backup files
-*.backup
-*.bak
-backup/
-
-# Cache
-.cache/
-*.cache
-.vercel
+# Local Claude Code settings
+.claude/settings.local.json
