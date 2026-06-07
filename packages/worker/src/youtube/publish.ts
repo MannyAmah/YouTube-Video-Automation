@@ -18,6 +18,25 @@ export interface PublishInput {
   disclaimer: string;
   visibility?: 'public' | 'unlisted' | 'private';
   publishAt?: string; // ISO; if set, schedules instead of publishing now
+  /**
+   * True if ANY asset in the video is a placeholder / not-RN-validated module
+   * (§5.2). Such a video may NEVER go public — only unlisted. This ties the
+   * visual-accuracy guard to publish visibility: placeholder art cannot reach
+   * the public §0.5 human-authorship gate.
+   */
+  containsUnvalidatedAssets: boolean;
+}
+
+/** Pure guard, unit-testable without any API: which visibility is allowed. */
+export function assertPublishAllowed(input: Pick<PublishInput, 'disclaimer' | 'visibility' | 'containsUnvalidatedAssets'>): void {
+  if (!input.disclaimer.trim()) {
+    throw new Error('refusing to publish: empty disclaimer (PLAN §6 requires one).');
+  }
+  if (input.containsUnvalidatedAssets && input.visibility === 'public') {
+    throw new Error(
+      'refusing to publish PUBLIC: video contains placeholder / non-RN-validated assets (§5.2). Unlisted only.',
+    );
+  }
 }
 
 export interface PublishResult {
@@ -39,10 +58,8 @@ function youtubeClient(cfg: Config): youtube_v3.Youtube {
 }
 
 export async function publishVideo(cfg: Config, input: PublishInput): Promise<PublishResult> {
-  // Compliance guard: nothing publishes without a disclaimer (PLAN §6 / §14).
-  if (!input.disclaimer.trim()) {
-    throw new Error('refusing to publish: empty disclaimer (PLAN §6 requires one).');
-  }
+  // Compliance guards: no disclaimer-less publish, no public placeholder (§6/§5.2/§14).
+  assertPublishAllowed(input);
   const disclaimerHash = createHash('sha256').update(input.disclaimer).digest('hex');
 
   const youtube = youtubeClient(cfg);

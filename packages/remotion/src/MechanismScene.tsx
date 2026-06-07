@@ -6,7 +6,7 @@
 
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
 import { MotionSpec } from '@vitalis/shared';
-import { MODULE_REGISTRY } from './modules/registry.js';
+import { MODULE_REGISTRY } from './modules/registry';
 
 export const MechanismScene: React.FC<{ spec: unknown }> = ({ spec }) => {
   const frame = useCurrentFrame();
@@ -20,14 +20,40 @@ export const MechanismScene: React.FC<{ spec: unknown }> = ({ spec }) => {
 
   const mod = MODULE_REGISTRY[moduleKey];
   if (!mod) throw new Error(`unknown mechanism module: '${moduleKey}'`);
-  if (!mod.validated) throw new Error(`module '${moduleKey}' is not RN-validated; refusing to render (§5.2)`);
 
+  // §5.2 guard, reconciled with the walking-skeleton (founder direction 2026-06-07):
+  // a non-validated PLACEHOLDER module renders, but is visibly watermarked and may
+  // NEVER reach a public publish — the publish stage refuses public when any asset
+  // is unvalidated. So placeholder art can only ship UNLISTED. Validated modules
+  // render clean.
   const checkedParams = mod.paramsSchema.parse(params);
   const { Component } = mod;
 
   return (
     <AbsoluteFill style={{ backgroundColor: '#fbfbf9' }}>
       <Component params={checkedParams} frame={frame} fps={fps} />
+      {!mod.validated && (
+        <AbsoluteFill
+          style={{
+            justifyContent: 'flex-end',
+            alignItems: 'center',
+            paddingBottom: 24,
+            pointerEvents: 'none',
+          }}
+        >
+          <span
+            style={{
+              fontFamily: 'sans-serif',
+              fontSize: 22,
+              color: '#b00020',
+              opacity: 0.55,
+              letterSpacing: 1,
+            }}
+          >
+            PLACEHOLDER · not RN-validated · unlisted-only
+          </span>
+        </AbsoluteFill>
+      )}
     </AbsoluteFill>
   );
 };

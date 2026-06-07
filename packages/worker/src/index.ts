@@ -8,8 +8,11 @@
 
 import { loadConfig } from './config.js';
 import { makeDb } from './db.js';
-import { STAGE_HANDLERS } from './stages/registry.js';
-import type { Job } from '@vitalis/shared';
+import { loadStageHandlers } from './stages/registry.js';
+import type { PipelineStage, Job } from '@vitalis/shared';
+import type { StageHandler } from './stages/registry.js';
+
+type Handlers = Record<PipelineStage, StageHandler>;
 
 const POLL_MS = 3000;
 let shuttingDown = false;
@@ -30,8 +33,8 @@ async function leaseJob(db: ReturnType<typeof makeDb>): Promise<Job | null> {
   return (data as Job | null) ?? null;
 }
 
-async function runJob(db: ReturnType<typeof makeDb>, cfg: ReturnType<typeof loadConfig>, job: Job) {
-  const handler = STAGE_HANDLERS[job.stage];
+async function runJob(db: ReturnType<typeof makeDb>, cfg: ReturnType<typeof loadConfig>, handlers: Handlers, job: Job) {
+  const handler = handlers[job.stage];
   try {
     const result = await handler({ db, cfg, videoId: job.videoId ?? '', payload: job.payload });
     await db.from('jobs').update({ status: 'done' }).eq('id', job.id);
@@ -60,6 +63,7 @@ async function runJob(db: ReturnType<typeof makeDb>, cfg: ReturnType<typeof load
 async function main() {
   const cfg = loadConfig();
   const db = makeDb(cfg);
+  const handlers = await loadStageHandlers();
   console.log('Vitalis worker started. Polling the job queue…');
 
   process.on('SIGINT', () => { shuttingDown = true; });
@@ -69,7 +73,7 @@ async function main() {
     try {
       const job = await leaseJob(db);
       if (job) {
-        await runJob(db, cfg, job);
+        await runJob(db, cfg, handlers, job);
       } else {
         await sleep(POLL_MS);
       }

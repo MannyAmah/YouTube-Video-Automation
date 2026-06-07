@@ -1,28 +1,25 @@
-// Remotion root — registers compositions. Phase 0 has one placeholder scene
-// proving the motion_spec → module render path. Real video assembly (VO + beats
-// + captions stitched from the script) lands in Phase 2.
+// Remotion root — registers compositions. The walking skeleton renders
+// `DrugStoryVideo` from a sample storyboard using PLACEHOLDER primitives through
+// the real motion_spec framework (PLAN §9 Milestone 1). Importing the
+// placeholders module registers the four PK/PD primitive modules.
 
 import { Composition } from 'remotion';
-import { MechanismScene } from './MechanismScene.js';
+import { DrugStoryVideo } from './DrugStoryVideo';
+import { SAMPLE_STORYBOARD, sampleDurationSec } from './sample';
+import './primitives/placeholders'; // side-effect: registers placeholder modules
+
+const FPS = 30;
 
 export const RemotionRoot: React.FC = () => {
   return (
     <Composition
-      id="MechanismScene"
-      component={MechanismScene as React.FC<Record<string, unknown>>}
-      durationInFrames={300}
-      fps={30}
+      id="DrugStoryVideo"
+      component={DrugStoryVideo as React.FC<Record<string, unknown>>}
+      durationInFrames={Math.round(sampleDurationSec * FPS)}
+      fps={FPS}
       width={1920}
       height={1080}
-      defaultProps={{
-        spec: {
-          module: 'placeholder',
-          params: {},
-          durationSec: 10,
-          keyframes: [{ t: 0, state: 'start', easing: 'ease-in-out' }],
-          beatIndex: 0,
-        },
-      }}
+      defaultProps={{ input: SAMPLE_STORYBOARD }}
     />
   );
 };

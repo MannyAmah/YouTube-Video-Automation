@@ -288,13 +288,21 @@ The build and operation lean on the installed skill packs:
 - YouTube Data API OAuth + channel created.
 - *(Parallel, off-laptop):* begin medical-illustrator search/commission — it's lead-time-bound (§5.3).
 
-**Phase 1 — Script→render spine + library kickoff (weeks 2–4, parallel tracks)**
-- *Software:* Topic Scout (v1, scoped to **drugs the primitive set covers**, §5.3), Script Writer → beats + SSML, **Fact-Check layer + claim ledger** (early — it's core), Storyboard → `motion_spec`, `docs/STYLE.md`.
-- *Software — parametrization framework (named deliverable):* build the **`motion_spec` schema → Remotion parametric-module framework** — the engine that turns an illustrator's vector art into a parameter-driven animated module (ligand docking, CYP450 metabolism, renal clearance) from `motion_spec`. A module = **art (illustrator) + engineering (this framework + per-module wiring)**; §5.3/§10.3 book the art role, this names the engineering role. The first PK/PD primitives are its proof.
+**Phase 1 — Full pipeline to a testable end-to-end render. Two milestones.**
+
+The end-to-end test is **decoupled from the illustrator** (founder direction, 2026-06-07): prove the whole pipeline works *now* with programmatic placeholder assets through the *real* framework; upgrade asset fidelity later **without changing the pipeline**.
+
+- *Software (both milestones):* Topic Scout (v1, drug/drug-class seed), Script Writer → beats + SSML, **Fact-Check layer + claim ledger** (early — it's core), Storyboard → `motion_spec`, the **`motion_spec`→Remotion parametrization framework** (the engine that drives a module from params — ligand docking, CYP450 metabolism, renal clearance), metadata/thumbnail, review queue, publish.
   - **DoD (framework):** `motion_spec` params are validated against the registered module's schema **at storyboard-emit time**, not only at render — a bad spec fails before it's queued, so the failure surfaces early, not a stage late.
-- *DoD — first `supabase db push`:* the migration is not "done" until an **anon read/write-denied behavior test** passes against the live DB (attempt an anonymous read and write; confirm both are denied) **before any real data flows**. Source-level RLS ≠ verified RLS.
-- *Library (parallel, the long pole):* commissioned illustrator delivers base primitives + vector art for the **universal PK/PD primitive set** (§5.3: ADME path — absorption, CYP450 first-pass, distribution, renal clearance — + the 4 target-interaction archetypes); Emmanuel validates each asset; engineer wires them into the framework above.
-- Exit: one end-to-end render of a drug's story from real primitives through the parametric framework.
+  - **DoD — first `supabase db push`:** the migration is not "done" until an **anon read/write-denied behavior test** passes against the live DB (attempt an anonymous read and write; confirm both are denied) **before any real data flows**. Source-level RLS ≠ verified RLS.
+
+- **🟢 Milestone 1 — WALKING SKELETON (illustrator-INDEPENDENT, build first):** the full pipeline runs end to end — topic → script → **REAL fact-check + claim ledger** → storyboard → `motion_spec` → Remotion render with **primitive placeholder assets** (simple line-art SVG stand-ins driven through the real framework) → metadata/thumbnail → review queue → **UNLISTED publish to a test channel**. The human-author step (Emmanuel's voice-memo commentary, §2.3) is wired in (one real input for the test). Picks a single drug topic that exercises **2–3 PK/PD primitives**.
+  - **Safety is REAL here, never mocked:** fact-check + populated claim ledger, RLS anon-deny test passing, disclaimer fail-closed verified. "Move fast" does not skip these.
+  - **First run is UNLISTED / test-channel only — never public.** Public launch stays behind the §0.5 human-authorship gate.
+  - **Exit:** the system produces one real, watchable, unlisted video end-to-end; every seam exercised; reported with a verification doc (what's real vs placeholder, the unlisted link, fact-check ledger output, RLS-deny + disclaimer-fail-closed evidence).
+
+- **🔵 Milestone 2 — REAL-PRIMITIVE RENDER (when the library lands):** swap placeholder assets for illustrator-delivered, **RN-validated** primitives (§5.3: ADME path + the 4 target-interaction archetypes). **Pipeline unchanged** — only asset fidelity improves.
+  - *Library (parallel, the long pole):* commissioned illustrator delivers the universal PK/PD primitive set; Emmanuel validates each asset; engineer swaps placeholders for validated modules behind the same `motion_spec` contract.
 
 **Phase 2 — Assets→assembled video + capture loop (weeks 4–6)**
 - Real founder narration (soft-launch voices) → forced-alignment captions; **voice-memo commentary capture** (§2.3) wired through Telegram → transcript → claim ledger.

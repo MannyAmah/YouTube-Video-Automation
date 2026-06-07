@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "studio": "remotion studio src/index.ts",
-    "render": "remotion render src/index.ts",
+    "render": "remotion render src/index.ts DrugStoryVideo out/walking-skeleton.mp4",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -14,7 +14,8 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "remotion": "^4.0.0",
-    "@remotion/cli": "^4.0.0"
+    "@remotion/cli": "^4.0.0",
+    "@remotion/renderer": "^4.0.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.5",

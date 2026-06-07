@@ -25,22 +25,21 @@ export interface StageResult {
 
 export type StageHandler = (ctx: StageContext) => Promise<StageResult>;
 
-const notImplemented =
-  (stage: PipelineStage): StageHandler =>
-  async () => {
-    throw new Error(`stage '${stage}' not implemented yet (Phase 1+)`);
-  };
-
 // The canonical order. The review gate halts the chain until a human decides.
-export const STAGE_HANDLERS: Record<PipelineStage, StageHandler> = {
-  topic_scout: notImplemented('topic_scout'),
-  script: notImplemented('script'),
-  fact_check: notImplemented('fact_check'), // §6 — build first, it is core
-  storyboard: notImplemented('storyboard'),
-  asset_gen: notImplemented('asset_gen'),
-  render: notImplemented('render'),
-  metadata: notImplemented('metadata'),
-  review: async () => ({ next: null }), // halt: the human gate (§7)
-  publish: notImplemented('publish'),
-  analytics: notImplemented('analytics'),
-};
+// Handlers are imported lazily to avoid a cycle (handlers import this module).
+export async function loadStageHandlers(): Promise<Record<PipelineStage, StageHandler>> {
+  const r = await import('./reasoning.js');
+  const io = await import('./io.js');
+  return {
+    topic_scout: io.topicScoutStage,
+    script: r.scriptStage,
+    fact_check: r.factCheckStage, // §6 — the moat, runs before render/publish
+    storyboard: r.storyboardStage,
+    asset_gen: async () => ({ next: 'render' }), // placeholder assets are programmatic (§9 M1); no-op stage
+    render: io.renderStage,
+    metadata: r.metadataStage,
+    review: io.reviewStage, // halt: the human gate (§7)
+    publish: io.publishStage,
+    analytics: async () => ({ next: null }), // Phase 4
+  };
+}
