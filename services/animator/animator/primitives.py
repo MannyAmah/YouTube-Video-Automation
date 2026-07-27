@@ -121,12 +121,24 @@ def build_molecule_intro(scene, params, mol_dir):
     mol.move_to(ORIGIN + UP * 0.3)
     nm = H.label(name, color=P.DRUG, scale=0.6, weight="BOLD").next_to(mol, DOWN, buff=0.3)
     cap = H.label(caption, color=P.MUTE, scale=0.36).next_to(nm, DOWN, buff=0.12)
+    # Larger, and animate it in with a slow rotate/scale so it reads as a
+    # real molecule arriving, not a static logo.
     if isinstance(mol, ImageMobject):
-        scene.play(FadeIn(mol, shift=LEFT * 0.4), run_time=1.0)
+        mol.scale(1.6)  # ~0.6*1.6 ≈ fills the frame nicely
+        mol.move_to(UP * 0.35)
+        nm.next_to(mol, DOWN, buff=0.35)
+        cap.next_to(nm, DOWN, buff=0.12)
+        mol.set_opacity(0.0)
+        scene.play(mol.animate.set_opacity(1.0).scale(1.06), run_time=1.1,
+                   rate_func=rate_functions.ease_out_sine)
+        scene.play(FadeIn(nm), FadeIn(cap), run_time=0.6)
+        scene.play(mol.animate.shift(UP * 0.12), rate_func=rate_functions.ease_in_out_sine,
+                   run_time=1.0)
     else:
         scene.play(GrowFromCenter(mol), run_time=1.0)
-    scene.play(FadeIn(nm), FadeIn(cap), run_time=0.7)
-    scene.play(mol.animate.shift(UP * 0.15), rate_func=rate_functions.ease_in_out_sine, run_time=1.0)
+        scene.play(FadeIn(nm), FadeIn(cap), run_time=0.7)
+        scene.play(mol.animate.shift(UP * 0.15), rate_func=rate_functions.ease_in_out_sine,
+                   run_time=1.0)
 
 
 def build_receptor_binding(scene, params, mol_dir):
@@ -378,6 +390,85 @@ def build_two_panel_compare(scene, params, mol_dir):
     scene.wait(0.4)
 
 
+def build_drug_interactions(scene, params, mol_dir):
+    title = _title(scene, _txt(params, "title", default="What it doesn't mix with"))
+    drug = _txt(params, "drugLabel", "drug", "name", default="this drug")
+    partners = params.get("interactsWith")
+    if not isinstance(partners, list) or not partners:
+        partners = [_txt(params, "note", default="certain medicines")]
+    partners = [str(x) for x in partners][:4]
+    # The drug as a puzzle piece in the centre.
+    center = RoundedRectangle(width=2.2, height=1.4, corner_radius=0.15)\
+        .set_fill(P.DRUG, opacity=1).set_stroke(P.DRUG_EDGE, width=3)
+    notch = Circle(radius=0.28).set_fill(P.BG, opacity=1).set_stroke(P.DRUG_EDGE, width=2)\
+        .move_to(center.get_right())
+    dlbl = H.label(drug, color=P.BG, scale=0.4, weight="BOLD")
+    if dlbl.width > center.width - 0.3:
+        dlbl.scale((center.width - 0.3) / dlbl.width)
+    dlbl.move_to(center)
+    scene.play(FadeIn(center), FadeIn(notch), FadeIn(dlbl), run_time=0.7)
+    # Clashing partners approach but don't fit (bump back).
+    ys = np.linspace(2.0, -2.0, len(partners))
+    for y, name in zip(ys, partners):
+        piece = RoundedRectangle(width=1.9, height=1.0, corner_radius=0.15)\
+            .set_fill(P.WARN, opacity=1).set_stroke("#a83e3e", width=3)\
+            .move_to([5.2, y, 0])
+        # A square bump that clearly won't fit the round notch.
+        bump = Square(0.42).set_fill(P.WARN, opacity=1).set_stroke("#a83e3e", width=2)\
+            .move_to(piece.get_left())
+        plbl = H.label(name, color=P.INK, scale=0.34, weight="BOLD")
+        if plbl.width > piece.width - 0.2:
+            plbl.scale((piece.width - 0.2) / plbl.width)
+        plbl.move_to(piece)
+        grp = VGroup(piece, bump, plbl)
+        scene.play(FadeIn(grp, shift=LEFT * 0.3), run_time=0.4)
+        scene.play(grp.animate.shift(LEFT * 2.2), run_time=0.5,
+                   rate_func=rate_functions.ease_out_sine)
+        scene.play(grp.animate.shift(RIGHT * 0.5), Flash(bump, color=P.WARN, flash_radius=0.6),
+                   run_time=0.35)
+    res = H.label("tell your doctor about these", color="#f0c36b", scale=0.42)\
+        .to_edge(DOWN, buff=0.7)
+    scene.play(FadeIn(res), run_time=0.5)
+
+
+def build_how_to_take(scene, params, mol_dir):
+    title = _title(scene, _txt(params, "title", default="How to take it safely"))
+    timing = _txt(params, "timing", default="once daily")
+    with_food = bool(params.get("withFood", False))
+    tips = params.get("tips")
+    if not isinstance(tips, list):
+        tips = []
+    tips = [str(t) for t in tips][:3]
+    # A simple 7-day calendar with pill marks.
+    cal = VGroup()
+    for i in range(7):
+        cell = Square(0.8).set_fill(P.PANEL, opacity=1).set_stroke(P.PANEL_EDGE, width=2)
+        cal.add(cell)
+    cal.arrange(RIGHT, buff=0.15).shift(UP * 1.2)
+    cal_lbl = H.label(timing, color=P.GOOD, scale=0.44, weight="BOLD").next_to(cal, UP, buff=0.3)
+    scene.play(LaggedStart(*[FadeIn(c) for c in cal], lag_ratio=0.06), FadeIn(cal_lbl), run_time=1.0)
+    pills = VGroup()
+    for cell in cal:
+        pill = RoundedRectangle(width=0.34, height=0.16, corner_radius=0.08)\
+            .set_fill(P.DRUG, opacity=1).set_stroke(P.DRUG_EDGE, width=2).move_to(cell)
+        pills.add(pill)
+    scene.play(LaggedStart(*[GrowFromCenter(p) for p in pills], lag_ratio=0.08), run_time=1.0)
+    # Food icon.
+    food_txt = ("take WITH food" if with_food else "with or without food")
+    plate = Circle(radius=0.5).set_fill("#3a4a63", opacity=1).set_stroke(P.INK, width=3)\
+        .shift(DOWN * 0.6 + LEFT * 3)
+    food_lbl = H.label(food_txt, color=P.INK, scale=0.4).next_to(plate, RIGHT, buff=0.3)
+    scene.play(FadeIn(plate), FadeIn(food_lbl), run_time=0.6)
+    if tips:
+        grp = VGroup(*[H.label("• " + t, color=P.MUTE, scale=0.4) for t in tips])
+        for g in grp:
+            if g.width > 6:
+                g.scale(6 / g.width)
+        grp.arrange(DOWN, aligned_edge=LEFT, buff=0.22).to_edge(DOWN, buff=0.7)
+        scene.play(LaggedStart(*[FadeIn(x, shift=RIGHT * 0.2) for x in grp], lag_ratio=0.2),
+                   run_time=1.0)
+
+
 def build_concept_card(scene, params, mol_dir):
     headline = _txt(params, "headline", "title", "text", default="Key point")
     sublines = params.get("sublines")
@@ -429,6 +520,8 @@ REGISTRY = {
     "journey": build_journey,
     "warning_vignette": build_warning_vignette,
     "two_panel_compare": build_two_panel_compare,
+    "drug_interactions": build_drug_interactions,
+    "how_to_take": build_how_to_take,
     "concept_card": build_concept_card,
     "outro_card": build_outro_card,
 }

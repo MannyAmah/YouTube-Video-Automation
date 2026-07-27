@@ -151,6 +151,8 @@ export const ANIMATION_PRIMITIVES = [
   'journey',
   'warning_vignette',
   'two_panel_compare',
+  'drug_interactions',
+  'how_to_take',
   'concept_card',
   'outro_card',
 ] as const;
