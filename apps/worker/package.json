@@ -1,0 +1,29 @@
+{
+  "name": "@yva/worker",
+  "version": "2.0.0",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "tsc -p tsconfig.json && node dist/main.js",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "e2e:pipeline": "node dist/e2e-pipeline.js"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.18",
+    "@nestjs/core": "^11.1.18",
+    "@yva/db": "workspace:*",
+    "@yva/media": "workspace:*",
+    "@yva/providers": "workspace:*",
+    "@yva/research": "workspace:*",
+    "@yva/shared": "workspace:*",
+    "bullmq": "^5.34.0",
+    "google-auth-library": "^9.15.0",
+    "ioredis": "^5.4.2",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "zod": "^3.24.1"
+  }
+}
