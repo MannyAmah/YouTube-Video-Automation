@@ -33,7 +33,8 @@ export const DEFAULT_JOB_OPTIONS: JobsOptions = {
 };
 
 export function pipelineJobId(runId: string, step: PipelineStep, epoch: number): string {
-  return `${runId}:${step}:e${epoch}`;
+  // NOTE: BullMQ forbids ':' in custom ids for delayed jobs — use '-'.
+  return `${runId}-${step}-e${epoch}`;
 }
 
 export async function enqueueStep(

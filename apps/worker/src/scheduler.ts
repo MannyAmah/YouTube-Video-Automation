@@ -188,7 +188,7 @@ export async function resumeRuns(ctx: StepContext): Promise<void> {
     await ctx.queue.add(
       step,
       { runId: run.id, epoch: run.scriptRevisions } satisfies PipelineJobData,
-      { ...DEFAULT_JOB_OPTIONS, jobId: `${run.id}:${step}:recover:${hourBucket}` },
+      { ...DEFAULT_JOB_OPTIONS, jobId: `${run.id}-${step}-recover-${hourBucket}` },
     );
     ctx.log.info({ runId: run.id, step, state: run.state }, 'resumed stalled run');
   }

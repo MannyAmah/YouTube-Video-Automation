@@ -18,7 +18,8 @@ RUN pnpm --filter @yva/db exec prisma generate \
   && pnpm --filter @yva/web build
 
 FROM node:22-slim
-RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate \
+  && apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /app /app
@@ -26,4 +27,4 @@ COPY --from=build /app /app
 ENV WEB_DIST=/app/apps/web/dist
 EXPOSE 3000
 # Apply migrations, ensure the admin user/channel exist, then start the API.
-CMD ["sh", "-c", "node_modules/.bin/prisma migrate deploy --schema packages/db/prisma/schema.prisma && node packages/db/dist/seed.js && node apps/api/dist/main.js"]
+CMD ["sh", "-c", "pnpm --filter @yva/db exec prisma migrate deploy && node packages/db/dist/seed.js && node apps/api/dist/main.js"]

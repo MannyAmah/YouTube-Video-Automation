@@ -203,7 +203,7 @@ export class RunsController {
     )?.[0];
     if (!step) throw new BadRequestException(`No step re-enters state ${target}`);
     await runStateTransition(this.prisma, id, 'FAILED', target, { failureReason: null });
-    await this.enqueue(id, step, run.scriptRevisions, `retry:${Date.now()}`);
+    await this.enqueue(id, step, run.scriptRevisions, `retry-${Date.now()}`);
     return { ok: true, resumedAt: target };
   }
 
@@ -253,9 +253,10 @@ export class RunsController {
     epoch: number,
     suffix = '',
   ): Promise<void> {
+    // '-' separators: BullMQ forbids ':' in custom ids for delayed jobs.
     await this.queue.add(step, { runId, epoch }, {
       ...DEFAULT_JOB_OPTIONS,
-      jobId: `${runId}:${step}:e${epoch}${suffix ? `:${suffix}` : ''}`,
+      jobId: `${runId}-${step}-e${epoch}${suffix ? `-${suffix}` : ''}`,
     });
   }
 
