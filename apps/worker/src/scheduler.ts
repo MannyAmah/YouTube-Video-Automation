@@ -180,6 +180,13 @@ export async function resumeRuns(ctx: StepContext): Promise<void> {
     const step = stepForState.get(run.state);
     if (!step) continue;
     if (paused && step !== 'approval') continue;
+    // A SCHEDULED run with a future publish slot is not stalled — its
+    // delayed publish job is simply waiting. Re-driving it early would
+    // publish ahead of the slot.
+    if (run.state === 'SCHEDULED') {
+      const publication = await ctx.prisma.publication.findUnique({ where: { runId: run.id } });
+      if (publication?.scheduledFor && publication.scheduledFor.getTime() > Date.now()) continue;
+    }
     // Supervised runs waiting on humans are not stalled.
     const channel = await ctx.prisma.channel.findUnique({ where: { id: run.channelId } });
     if (
