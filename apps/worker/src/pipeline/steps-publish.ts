@@ -58,7 +58,9 @@ export async function stepApproval(ctx: StepContext, runId: string, epoch: numbe
 
 export async function stepUpload(ctx: StepContext, runId: string, epoch: number): Promise<void> {
   const run = await getRunChecked(ctx.prisma, runId);
-  await runStateTransition(ctx.prisma, runId, 'APPROVED', 'UPLOADING_PRIVATE');
+  if (run.state === 'APPROVED') {
+    await runStateTransition(ctx.prisma, runId, 'APPROVED', 'UPLOADING_PRIVATE');
+  } // else: re-entering a stranded UPLOADING_PRIVATE run (crash recovery).
 
   try {
     const existing = await ctx.prisma.publication.findUnique({ where: { runId } });

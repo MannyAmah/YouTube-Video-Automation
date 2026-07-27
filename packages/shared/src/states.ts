@@ -70,6 +70,8 @@ const TRANSITIONS: Record<RunState, readonly RunState[]> = {
     'GENERATING_ASSETS',
     'RENDERING',
     'QUALITY_CHECK',
+    'AWAITING_APPROVAL',
+    'APPROVED',
     'UPLOADING_PRIVATE',
     'SCHEDULED',
     'CANCELLED',

@@ -1,7 +1,7 @@
 import type { Job } from 'bullmq';
 import { StaleRunStateError, runStateTransition, getRunChecked } from '@yva/db';
 import { MissingProviderError } from '@yva/providers';
-import { PipelineStep, PIPELINE_STEPS, STEP_ENTRY_STATE } from '@yva/shared';
+import { canTransition, PipelineStep, PIPELINE_STEPS, STEP_ENTRY_STATE } from '@yva/shared';
 import type { StepContext } from './context';
 import { isSystemPaused } from './context';
 import {
@@ -54,9 +54,13 @@ export async function processPipelineJob(ctx: StepContext, job: Job<PipelineJobD
   }
 
   // State guard: only the step matching the run's current state may execute.
+  // upload additionally accepts UPLOADING_PRIVATE so a crashed/stranded
+  // upload can be re-driven (the step itself is idempotent).
   const run = await getRunChecked(ctx.prisma, runId);
   const expected = STEP_ENTRY_STATE[step];
-  if (run.state !== expected) {
+  const acceptable: string[] =
+    step === 'upload' ? [expected, 'UPLOADING_PRIVATE'] : [expected];
+  if (!acceptable.includes(run.state)) {
     ctx.log.info(
       { runId, step, state: run.state, expected },
       'skipping stale job (state mismatch)',
@@ -102,9 +106,13 @@ export async function processPipelineJob(ctx: StepContext, job: Job<PipelineJobD
     const isFinalAttempt = job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
     const permanent = err instanceof MissingProviderError;
     if (isFinalAttempt || permanent) {
+      // Mark FAILED from the run's CURRENT state — a step may fail after an
+      // internal transition (e.g. upload fails inside UPLOADING_PRIVATE,
+      // which it entered from APPROVED). Retry re-enters the step's entry
+      // state.
       const current = await getRunChecked(ctx.prisma, runId).catch(() => null);
-      if (current && current.state === expected) {
-        await runStateTransition(ctx.prisma, runId, expected, 'FAILED', {
+      if (current && canTransition(current.state, 'FAILED')) {
+        await runStateTransition(ctx.prisma, runId, current.state, 'FAILED', {
           failureReason: `Step ${step} failed: ${message}`,
           retryTargetState: expected,
         }).catch((e) => ctx.log.error({ runId, err: e.message }, 'could not mark run FAILED'));
