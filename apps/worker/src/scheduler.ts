@@ -171,6 +171,9 @@ export async function resumeRuns(ctx: StepContext): Promise<void> {
       step,
     ]),
   );
+  // Stranded uploads (crash after APPROVED -> UPLOADING_PRIVATE) are
+  // re-driven by the idempotent upload step.
+  stepForState.set('UPLOADING_PRIVATE', 'upload');
   const hourBucket = Math.floor(Date.now() / 3_600_000);
 
   for (const run of runs) {
