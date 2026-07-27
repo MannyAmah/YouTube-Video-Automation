@@ -1,0 +1,203 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AdminUser {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  createdAt    DateTime   @default(now())
+  approvals    Approval[]
+}
+
+model Channel {
+  id               String   @id @default(cuid())
+  youtubeChannelId String?  @unique
+  title            String
+  niche            String   @default("medication-education")
+  locale           String   @default("en-US")
+  // Policy
+  publishMode      String   @default("autonomous") // autonomous | supervised
+  paused           Boolean  @default(false)
+  maxPublishesPerDay Int    @default(1)
+  uploadPrivacy    String   @default("private")
+  youtubeCategoryId String  @default("27")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  oauthConnection OAuthConnection?
+  briefs          ContentBrief[]
+  runs            ProductionRun[]
+  analytics       AnalyticsSnapshot[]
+}
+
+model OAuthConnection {
+  id                    String   @id @default(cuid())
+  channelId             String   @unique
+  channel               Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  // AES-256-GCM encrypted refresh token; never stored or logged in plaintext.
+  encryptedRefreshToken String
+  scopes                String[]
+  googleAccountEmail    String?
+  connectedAt           DateTime @default(now())
+  lastRefreshedAt       DateTime?
+  revokedAt             DateTime?
+}
+
+model ContentBrief {
+  id                String   @id @default(cuid())
+  channelId         String
+  channel           Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  medicationQuery   String
+  format            String   @default("longform_16x9")
+  angle             String   @default("complete_guide")
+  targetDurationSec Int      @default(420)
+  audienceNote      String
+  status            String   @default("open") // open | in_production | done | abandoned
+  createdBy         String   @default("scheduler") // scheduler | admin
+  createdAt         DateTime @default(now())
+
+  runs ProductionRun[]
+
+  @@index([channelId, status])
+}
+
+model ProductionRun {
+  id               String    @id @default(cuid())
+  channelId        String
+  channel          Channel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  briefId          String
+  brief            ContentBrief @relation(fields: [briefId], references: [id])
+  state            String    @default("DRAFT")
+  // When state = FAILED: which state a retry should re-enter.
+  retryTargetState String?
+  failureReason    String?
+  scriptRevisions  Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  scripts      Script[]
+  storyboards  Storyboard[]
+  artifacts    Artifact[]
+  approvals    Approval[]
+  publication  Publication?
+  jobEvents    JobEvent[]
+
+  @@index([channelId, state])
+}
+
+model Script {
+  id        String   @id @default(cuid())
+  runId     String
+  run       ProductionRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  version   Int
+  // Zod-validated Script JSON (schemas.ts ScriptSchema).
+  content   Json
+  // PolicyResult from automated review.
+  review    Json?
+  createdAt DateTime @default(now())
+
+  @@unique([runId, version])
+}
+
+model Storyboard {
+  id        String   @id @default(cuid())
+  runId     String
+  run       ProductionRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  version   Int
+  content   Json
+  createdAt DateTime @default(now())
+
+  @@unique([runId, version])
+}
+
+model Artifact {
+  id             String   @id @default(cuid())
+  runId          String
+  run            ProductionRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  kind           String // ArtifactKind
+  // Path relative to MEDIA_ROOT — never an absolute path, so workers and
+  // storage backends are interchangeable.
+  relativePath   String
+  mimeType       String
+  bytes          Int
+  checksumSha256 String
+  // Which provider produced it (openai, elevenlabs, ffmpeg, fake-test).
+  producer       String
+  // Extra metadata: durationSec, width, height, sceneId, etc.
+  meta           Json?
+  createdAt      DateTime @default(now())
+
+  @@unique([runId, kind, relativePath])
+  @@index([runId, kind])
+}
+
+model Approval {
+  id         String   @id @default(cuid())
+  runId      String
+  run        ProductionRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  stage      String // script | upload | publish
+  decision   String // approved | rejected
+  // "policy:autonomous" for automated approvals, else AdminUser id.
+  actorType  String // policy | human
+  actorId    String?
+  actor      AdminUser? @relation(fields: [actorId], references: [id])
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  @@index([runId, stage])
+}
+
+model Publication {
+  id               String    @id @default(cuid())
+  runId            String    @unique
+  run              ProductionRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  youtubeVideoId   String?   @unique
+  privacyStatus    String    @default("private")
+  scheduledFor     DateTime?
+  publishedAt      DateTime?
+  uploadStartedAt  DateTime?
+  uploadedAt       DateTime?
+  lastError        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model AnalyticsSnapshot {
+  id             String   @id @default(cuid())
+  channelId      String
+  channel        Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  youtubeVideoId String?
+  capturedAt     DateTime @default(now())
+  // Raw metrics from the YouTube APIs — no synthetic values, ever.
+  metrics        Json
+
+  @@index([channelId, youtubeVideoId, capturedAt])
+}
+
+model JobEvent {
+  id        String   @id @default(cuid())
+  runId     String?
+  run       ProductionRun? @relation(fields: [runId], references: [id], onDelete: Cascade)
+  step      String
+  jobId     String
+  attempt   Int
+  status    String // started | completed | failed
+  detail    String?
+  durationMs Int?
+  createdAt DateTime @default(now())
+
+  @@index([runId, step])
+  @@index([jobId])
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
