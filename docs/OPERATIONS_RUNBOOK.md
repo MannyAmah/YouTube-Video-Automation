@@ -85,9 +85,13 @@ automatically.
 
 | Schedule | Cron (UTC) | Action |
 | --- | --- | --- |
-| daily_brief | 0 9 * * * | next backlog medication → new run (skips if paused / ≥3 in flight) |
+| daily_brief | 0 6,10,15 * * * | next backlog medication → new run, 3×/day (skips if paused / ≥4 in flight) |
 | analytics_sync | 0 */6 * * * | YouTube statistics snapshots |
 | resume_runs | */30 * * * * | re-enqueue stalled/paused runs |
+
+Publish slots (autonomous): 13:00, 17:30, 22:00 UTC — morning, afternoon,
+evening US Eastern. Finished videos take the next free slot; the daily
+quota (`maxPublishesPerDay`, default 3) is re-checked at publish time.
 
 ## Incident log
 

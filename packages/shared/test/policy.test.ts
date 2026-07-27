@@ -91,6 +91,18 @@ describe('reviewScript', () => {
   });
 });
 
+describe('nextPublishSlot', () => {
+  it('picks the next slot today, then rolls to tomorrow morning', async () => {
+    const { nextPublishSlot } = await import('../src/policy');
+    const morning = new Date('2026-07-27T08:00:00Z');
+    expect(nextPublishSlot(morning).toISOString()).toBe('2026-07-27T13:00:00.000Z');
+    const midday = new Date('2026-07-27T13:00:00Z'); // exactly at slot → next one
+    expect(nextPublishSlot(midday).toISOString()).toBe('2026-07-27T17:30:00.000Z');
+    const night = new Date('2026-07-27T23:00:00Z');
+    expect(nextPublishSlot(night).toISOString()).toBe('2026-07-28T13:00:00.000Z');
+  });
+});
+
 describe('reviewQc', () => {
   const goodQc: QcReport = {
     passed: true,

@@ -19,7 +19,9 @@ import { oauthClientForChannel } from './oauth-tokens';
  */
 
 export const SCHEDULES = [
-  { name: 'daily_brief', cron: '0 9 * * *' },
+  // Three briefs daily, each a few hours ahead of its publish slot
+  // (slots: 13:00, 17:30, 22:00 UTC — morning/afternoon/evening US Eastern).
+  { name: 'daily_brief', cron: '0 6,10,15 * * *' },
   { name: 'analytics_sync', cron: '0 */6 * * *' },
   { name: 'resume_runs', cron: '*/30 * * * *' },
 ] as const;
@@ -66,7 +68,7 @@ export async function runDailyBrief(ctx: StepContext): Promise<string | null> {
   const inFlight = await ctx.prisma.productionRun.count({
     where: { channelId: channel.id, state: { notIn: ['PUBLISHED', 'CANCELLED', 'FAILED'] } },
   });
-  if (inFlight >= 3) {
+  if (inFlight >= 4) {
     ctx.log.warn({ inFlight }, 'daily brief skipped: production backlog');
     return null;
   }

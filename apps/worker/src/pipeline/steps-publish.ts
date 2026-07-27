@@ -1,6 +1,6 @@
 import { readFile } from 'fs/promises';
 import { getRunChecked, runStateTransition } from '@yva/db';
-import { QcReportSchema, reviewQc } from '@yva/shared';
+import { nextPublishSlot, QcReportSchema, reviewQc } from '@yva/shared';
 import { getYouTubeClient } from '@yva/providers';
 import type { StepContext } from './context';
 import { isSystemPaused } from './context';
@@ -142,6 +142,23 @@ async function publishedToday(ctx: StepContext, channelId: string): Promise<numb
   });
 }
 
+/**
+ * Earliest publish slot after `after` that no other publication of this
+ * channel already occupies — so three finished videos land on the day's
+ * morning/afternoon/evening slots instead of stacking on one.
+ */
+async function nextFreeSlot(ctx: StepContext, channelId: string, after: Date): Promise<Date> {
+  let candidate = nextPublishSlot(after);
+  for (let i = 0; i < 24; i++) {
+    const taken = await ctx.prisma.publication.count({
+      where: { scheduledFor: candidate, run: { channelId } },
+    });
+    if (taken === 0) return candidate;
+    candidate = nextPublishSlot(candidate);
+  }
+  return candidate;
+}
+
 async function decidePublish(ctx: StepContext, runId: string, epoch: number): Promise<void> {
   const run = await getRunChecked(ctx.prisma, runId);
   if (run.channel.publishMode === 'supervised') {
@@ -155,16 +172,15 @@ async function decidePublish(ctx: StepContext, runId: string, epoch: number): Pr
   }
 
   const count = await publishedToday(ctx, run.channelId);
-  let scheduledFor = new Date();
-  let delayMs = 0;
-  if (count >= run.channel.maxPublishesPerDay) {
-    // Quota reached — schedule for the start of the next UTC day + 15:00 UTC
-    // (a reasonable default publish hour), enforced again at publish time.
-    scheduledFor = new Date();
-    scheduledFor.setUTCDate(scheduledFor.getUTCDate() + 1);
-    scheduledFor.setUTCHours(15, 0, 0, 0);
-    delayMs = Math.max(0, scheduledFor.getTime() - Date.now());
+  const quotaReached = count >= run.channel.maxPublishesPerDay;
+  const searchStart = new Date();
+  if (quotaReached) {
+    // Quota used up — start looking from the next UTC midnight.
+    searchStart.setUTCDate(searchStart.getUTCDate() + 1);
+    searchStart.setUTCHours(0, 0, 0, 0);
   }
+  const scheduledFor = await nextFreeSlot(ctx, run.channelId, searchStart);
+  const delayMs = Math.max(0, scheduledFor.getTime() - Date.now());
 
   await ctx.prisma.publication.update({ where: { runId }, data: { scheduledFor } });
   await runStateTransition(ctx.prisma, runId, 'UPLOADED_PRIVATE', 'SCHEDULED');
@@ -184,14 +200,15 @@ export async function stepPublish(ctx: StepContext, runId: string, epoch: number
   // Re-check quota at publish time.
   const count = await publishedToday(ctx, run.channelId);
   if (count >= run.channel.maxPublishesPerDay) {
-    const tomorrow = new Date();
-    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-    tomorrow.setUTCHours(15, 0, 0, 0);
-    await ctx.prisma.publication.update({ where: { runId }, data: { scheduledFor: tomorrow } });
+    const tomorrowStart = new Date();
+    tomorrowStart.setUTCDate(tomorrowStart.getUTCDate() + 1);
+    tomorrowStart.setUTCHours(0, 0, 0, 0);
+    const slot = await nextFreeSlot(ctx, run.channelId, tomorrowStart);
+    await ctx.prisma.publication.update({ where: { runId }, data: { scheduledFor: slot } });
     await enqueueStep(ctx.queue, runId, 'publish', epoch + 1, {
-      delay: tomorrow.getTime() - Date.now(),
+      delay: Math.max(0, slot.getTime() - Date.now()),
     });
-    ctx.log.info({ runId, tomorrow }, 'daily publish quota reached; rescheduled');
+    ctx.log.info({ runId, slot }, 'daily publish quota reached; rescheduled to next free slot');
     return;
   }
 

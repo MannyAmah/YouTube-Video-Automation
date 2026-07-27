@@ -129,3 +129,26 @@ export function reviewQc(qc: QcReport, targetDurationSec: number): PolicyResult 
 
 /** Maximum automatic script revision attempts before the run fails. */
 export const MAX_SCRIPT_REVISIONS = 3;
+
+/**
+ * Daily publish slots (UTC) — morning, afternoon, evening in US Eastern
+ * (9:00 AM, 1:30 PM, 6:00 PM ET during daylight time).
+ */
+export const PUBLISH_SLOTS_UTC: readonly { hour: number; minute: number }[] = [
+  { hour: 13, minute: 0 },
+  { hour: 17, minute: 30 },
+  { hour: 22, minute: 0 },
+];
+
+/** Earliest publish slot strictly after `after` (looks ahead day by day). */
+export function nextPublishSlot(after: Date): Date {
+  for (let day = 0; day < 8; day++) {
+    for (const slot of PUBLISH_SLOTS_UTC) {
+      const candidate = new Date(after);
+      candidate.setUTCDate(candidate.getUTCDate() + day);
+      candidate.setUTCHours(slot.hour, slot.minute, 0, 0);
+      if (candidate.getTime() > after.getTime()) return candidate;
+    }
+  }
+  throw new Error('nextPublishSlot: no slot found within 8 days');
+}
