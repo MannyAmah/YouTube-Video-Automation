@@ -133,6 +133,58 @@ export const StoryboardSchema = z.object({
 export type Storyboard = z.infer<typeof StoryboardSchema>;
 
 /* ---------------------------------------------------------------------------
+ * Animation plan — the storyboard for the programmatic animation engine.
+ * Every script concept maps to an animated scene built from one primitive.
+ * ------------------------------------------------------------------------- */
+
+export const ANIMATION_PRIMITIVES = [
+  'title_card',
+  'bloodstream_level',
+  'organ_action',
+  'molecule_intro',
+  'receptor_binding',
+  'enzyme_inhibition',
+  'channel_transporter',
+  'pathway_switch',
+  'cell_uptake',
+  'gauge',
+  'journey',
+  'warning_vignette',
+  'two_panel_compare',
+  'concept_card',
+  'outro_card',
+] as const;
+export type AnimationPrimitive = (typeof ANIMATION_PRIMITIVES)[number];
+
+export const AnimationSceneSchema = z.object({
+  id: z.string().min(1),
+  sectionId: z.string().min(1),
+  /** Exact narration spoken over this scene (drives its duration). */
+  narration: z.string().min(1),
+  /** The visual primitive that simulates this concept. */
+  primitive: z.enum(ANIMATION_PRIMITIVES),
+  /**
+   * Primitive parameters. Loosely typed on purpose: the Python builders are
+   * defensive and fall back on missing/odd fields. Common fields include
+   * title, organ, action, substanceLabel, level, drugLabel, receptorLabel,
+   * enzymeLabel, nodeLabel, state, downstreamEffect, metricLabel, from, to,
+   * name, caption, steps[], items[], leftTitle/rightTitle, headline/sublines.
+   */
+  params: z.record(z.string(), z.any()).default({}),
+  /** Short on-screen caption reinforcing the point (optional). */
+  caption: z.string().max(80).default(''),
+});
+export type AnimationScene = z.infer<typeof AnimationSceneSchema>;
+
+export const AnimationPlanSchema = z.object({
+  scenes: z.array(AnimationSceneSchema).min(6),
+  /** Prompt for the thumbnail base illustration (still image is fine here). */
+  thumbnailPrompt: z.string().min(1),
+  thumbnailTitleText: z.string().min(1).max(40),
+});
+export type AnimationPlan = z.infer<typeof AnimationPlanSchema>;
+
+/* ---------------------------------------------------------------------------
  * Quality-control report
  * ------------------------------------------------------------------------- */
 

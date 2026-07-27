@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { MedicationEvidence, reviewScript, ScriptSchema, StoryboardSchema } from '@yva/shared';
+import { AnimationPlanSchema, MedicationEvidence, reviewScript, ScriptSchema } from '@yva/shared';
 import { FakeTextProvider, FakeYouTubeClient } from '../src/fakes';
 
 const evidence: MedicationEvidence = {
@@ -50,20 +50,21 @@ describe('FakeTextProvider', () => {
     expect(data.sections.length).toBeGreaterThanOrEqual(4);
   });
 
-  it('builds a schema-valid storyboard from a script', async () => {
+  it('builds a schema-valid animation plan from a script', async () => {
     const { data: script } = await provider.generateStructured({
       system: 'sys',
       user: `<EVIDENCE_JSON>${JSON.stringify(evidence)}</EVIDENCE_JSON>`,
       schema: ScriptSchema,
       schemaDescription: 'Script JSON: {...}',
     });
-    const { data: storyboard } = await provider.generateStructured({
+    const { data: plan } = await provider.generateStructured({
       system: 'sys',
       user: `<SCRIPT_JSON>${JSON.stringify(script)}</SCRIPT_JSON>`,
-      schema: StoryboardSchema,
-      schemaDescription: 'Storyboard JSON: {...}',
+      schema: AnimationPlanSchema,
+      schemaDescription: 'AnimationPlan JSON: {...}',
     });
-    expect(storyboard.scenes.length).toBeGreaterThanOrEqual(6);
+    expect(plan.scenes.length).toBeGreaterThanOrEqual(6);
+    expect(plan.scenes[0]!.primitive).toBe('title_card');
   });
 
   it('refuses prompts without embedded upstream JSON', async () => {

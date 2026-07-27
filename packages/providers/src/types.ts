@@ -1,4 +1,4 @@
-import type { ZodType } from 'zod';
+import type { ZodType, ZodTypeDef } from 'zod';
 
 /**
  * Provider interfaces. Every adapter either succeeds with a real artifact or
@@ -32,7 +32,10 @@ export interface TokenUsage {
 export interface StructuredRequest<T> {
   system: string;
   user: string;
-  schema: ZodType<T>;
+  // Input type is intentionally `unknown` so schemas with `.default()`/
+  // `.optional()` fields (whose input differs from output) still bind T to
+  // the validated output type.
+  schema: ZodType<T, ZodTypeDef, unknown>;
   /** Human-readable description of the expected JSON, embedded in prompts. */
   schemaDescription: string;
   maxOutputTokens?: number;

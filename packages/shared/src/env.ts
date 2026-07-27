@@ -48,6 +48,10 @@ const base = z.object({
     .optional()
     .default('false')
     .transform((v) => v === 'true'),
+  // Programmatic animation engine (Python/Manim). Paths resolved at boot;
+  // defaults suit the Docker image and the local monorepo layout.
+  ANIMATOR_PYTHON: z.string().optional().default(''),
+  ANIMATOR_DIR: z.string().optional().default(''),
 });
 
 export type Env = z.infer<typeof base>;
