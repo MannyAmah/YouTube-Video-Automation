@@ -7,6 +7,7 @@ import {
   MAX_SCRIPT_REVISIONS,
   MedicationEvidence,
   MedicationEvidenceSchema,
+  planCoversScript,
   reviewScript,
   Script,
   ScriptSchema,
@@ -166,13 +167,36 @@ export async function stepStoryboard(ctx: StepContext, runId: string, epoch: num
 
   const provider = getTextProvider(ctx.env);
   const prompt = buildAnimationPlanPrompt(script, run.brief.medicationQuery);
-  const { data: generated, usage } = await provider.generateStructured<AnimationPlan>({
-    system: prompt.system,
-    user: prompt.user,
-    schema: AnimationPlanSchema,
-    schemaDescription: ANIMATION_PLAN_SCHEMA_DESCRIPTION,
-    maxOutputTokens: 12_000,
-  });
+
+  // Generate the plan, retrying if the model drops too much narration
+  // (which would make the video far shorter than the script).
+  let generated: AnimationPlan | null = null;
+  let usage = { inputTokens: 0, outputTokens: 0 };
+  let user = prompt.user;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const result = await provider.generateStructured<AnimationPlan>({
+      system: prompt.system,
+      user,
+      schema: AnimationPlanSchema,
+      schemaDescription: ANIMATION_PLAN_SCHEMA_DESCRIPTION,
+      maxOutputTokens: 14_000,
+    });
+    usage = result.usage;
+    const planWords = result.data.scenes
+      .map((s) => s.narration)
+      .join(' ')
+      .split(/\s+/)
+      .filter(Boolean).length;
+    const coverage = planCoversScript(planWords, script);
+    if (coverage.ok) {
+      generated = result.data;
+      break;
+    }
+    ctx.log.warn({ runId, failures: coverage.failures }, 'animation plan dropped narration; retrying');
+    generated = result.data; // keep last attempt as fallback
+    user = `${prompt.user}\n\nYour previous plan FAILED: ${coverage.failures.join(' ')}`;
+  }
+  if (!generated) throw new Error('Animation plan generation produced nothing');
 
   // Deterministic guarantee: the spoken disclaimer always closes the video,
   // regardless of model behaviour — a model omission can never drop it.

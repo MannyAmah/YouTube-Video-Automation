@@ -33,14 +33,43 @@ const REQUIRED_DISCLAIMER_TERMS = ['education', 'doctor', 'pharmacist'];
  * Script review policy — every check must pass before a script may proceed
  * to storyboarding.
  */
-/** Average spoken words per second used for duration estimates. */
-export const NARRATION_WPS = 2.35;
+/** Average spoken words per second (measured on ElevenLabs narration). */
+export const NARRATION_WPS = 2.8;
 
 export function scriptWordCount(script: Script): number {
   return [script.hook, ...script.sections.map((s) => s.narration), script.outro]
     .join(' ')
     .split(/\s+/)
     .filter(Boolean).length;
+}
+
+function wordCount(text: string): number {
+  return text.split(/\s+/).filter(Boolean).length;
+}
+
+/**
+ * The animation plan must reproduce (near) the full script narration — a
+ * plan that silently drops content produces a video far shorter than the
+ * script. Returns ok=false with the shortfall when coverage is too low.
+ */
+export function planCoversScript(
+  planNarrationWords: number,
+  script: Script,
+  minRatio = 0.85,
+): PolicyResult {
+  const scriptWords = scriptWordCount(script);
+  const ratio = scriptWords === 0 ? 1 : planNarrationWords / scriptWords;
+  if (ratio < minRatio) {
+    return {
+      ok: false,
+      failures: [
+        `Animation plan narration is only ${planNarrationWords} words vs the script's ${scriptWords} ` +
+          `(${Math.round(ratio * 100)}%). Include the FULL narration — every sentence of the hook, ` +
+          `each section, and the outro — split across scenes verbatim, dropping nothing.`,
+      ],
+    };
+  }
+  return { ok: true, failures: [] };
 }
 
 export function reviewScript(

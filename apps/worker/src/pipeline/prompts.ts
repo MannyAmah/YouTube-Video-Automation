@@ -53,16 +53,25 @@ export function buildScriptPrompt(
 ): { system: string; user: string } {
   const system = `${CHANNEL_VOICE}
 
-FACTUAL DISCIPLINE — this is non-negotiable:
-- You are given an evidence bundle from FDA and NIH sources. It is the ONLY
-  permitted source of facts. Do not use outside knowledge for any factual claim.
-- Every factual statement in the narration (what the drug treats, how it
-  works, side effects, interactions, manufacturers, statistics) must appear
-  in "claims" with the sourceIds of the evidence entries that support it.
-- Use ONLY source ids that exist in the evidence bundle.
-- If the evidence does not support something, leave it out of the script.
-- Do not invent numbers. Only use a statistic if it appears verbatim in an
-  evidence excerpt, and cite it.`;
+DEPTH — go deeper than a surface overview. For the mechanism especially:
+- Name the REAL molecular targets when the evidence gives them: the actual
+  receptor, enzyme, ion channel, transporter, or signaling protein the drug
+  acts on (e.g. "HMG-CoA reductase", "ACE", "beta-1 receptors", "AMPK",
+  "L-type calcium channels", "the proton pump"). Say the real name, THEN
+  explain it with a five-year-old metaphor — never skip the real name.
+- Explain the chain of events: drug -> target -> what changes in the cell ->
+  what changes in the organ -> what changes for the patient.
+- Include a dedicated deeper look at the mechanism, and cover how it's taken
+  safely and its key interactions, each with real detail from the evidence.
+
+FACTUAL DISCIPLINE — non-negotiable:
+- The FDA/NIH evidence bundle is the ONLY permitted source of facts. Do not
+  use outside knowledge for any factual claim.
+- Every factual statement (what it treats, how it works, the named targets,
+  side effects, interactions, manufacturers, statistics) must appear in
+  "claims" with the sourceIds that support it. Use ONLY ids in the bundle.
+- If the evidence names a molecular target, USE it. If the evidence does not
+  support something, leave it out. Never invent numbers.`;
 
   const angleInstruction: Record<string, string> = {
     complete_guide:
@@ -83,9 +92,12 @@ Angle: ${brief.angle} — ${angleInstruction[brief.angle] ?? angleInstruction.co
 
 LENGTH — the single most common failure. The narration (hook + every section
 narration + outro) MUST total AT LEAST ${minWords} words. Count as you write.
-Produce 7-9 sections, each 110-170 narration words. For every fact: state it
-simply, give a metaphor a five-year-old would picture, add one everyday
-example, then say what it means for the viewer. Do not be terse.
+Produce 8-11 sections, each 130-190 narration words. Include distinct
+sections for: what it treats, the DEEP mechanism (named target -> cell ->
+organ -> patient), how it's taken safely, common and serious side effects,
+and key interactions. For every fact: name it precisely, give a metaphor a
+five-year-old would picture, add one everyday example, then say what it means
+for the viewer. Do not be terse.
 
 CITATIONS — claim.sourceIds must be chosen ONLY from this exact list of ids
 (copy them verbatim, including the "label_" prefix):
@@ -197,14 +209,25 @@ fill its params. Every scene must actually SHOW the process, not just label it.
       Side effects as friendly signposts.
 - two_panel_compare params: {title?, leftTitle, rightTitle, leftNote?, rightNote?}
       Before/after or with/without comparison.
-- concept_card     params: {headline, sublines?: [..]}   (generic fallback)
+- drug_interactions params: {title?, drugLabel, interactsWith: ["warfarin","alcohol","grapefruit",...], note?}
+      Shows the drug and things it clashes with as puzzle pieces that don't fit.
+- how_to_take      params: {title?, timing: "once daily"|"twice daily"|"with meals"|..., withFood: true|false, tips: ["don't crush","same time each day",...]}
+      A calendar + pill + food icon showing how to take it safely.
+- concept_card     params: {headline, sublines?: [..]}   (LAST-RESORT fallback only)
 - outro_card       params: {line1, line2}
 
-Match the primitive to the biology: mechanism that activates/inhibits a
-receptor -> receptor_binding; blocks an enzyme -> enzyme_inhibition; a
-calcium/sodium/potassium channel -> channel_transporter; an intracellular
-signal like AMPK -> pathway_switch; lowering a measurable number -> gauge;
-an organ over/under-producing something -> organ_action.`;
+Match the primitive to the biology — and NEVER use concept_card for the
+mechanism, interactions, or how-to-take (use the specific primitive):
+  drug activates/inhibits a named receptor -> receptor_binding
+  drug blocks a named enzyme -> enzyme_inhibition
+  a calcium/sodium/potassium channel -> channel_transporter
+  an intracellular signal (AMPK, etc.) -> pathway_switch
+  the drug's molecular target chain -> use receptor_binding OR enzyme_inhibition OR pathway_switch (name the REAL target from the script)
+  lowering a measurable number -> gauge
+  an organ over/under-producing something -> organ_action
+  what it does not mix with -> drug_interactions
+  how to take it -> how_to_take
+  side effects -> warning_vignette`;
 
 export function buildAnimationPlanPrompt(
   script: Script,
@@ -219,17 +242,20 @@ primitive that literally simulates the concept being narrated, then supply
 its parameters.
 
 Hard rules:
-- Cover the script in order: the hook, EVERY section's narration, the outro,
-  and finally the disclaimer. Split long sections into 2-3 scenes so each
-  scene simulates ONE idea.
-- Scene narration text, concatenated in order, must reproduce the script's
-  narration faithfully (you may split sentences across scenes, not rewrite).
-- EVERY concept mentioned must be simulated by an appropriate primitive —
-  never use concept_card when a specific primitive fits.
-- Open with title_card, close with outro_card. Include one molecule_intro
-  for the drug near the start. Represent the mechanism of action with the
-  most specific primitive(s) available.
-- Use the real medication generic name "${medicationName}" for molecule_intro.
+- Reproduce the FULL script narration VERBATIM, split across scenes. The
+  concatenation of all scene "narration" fields must equal the script's
+  hook + every section (in order) + outro + disclaimer, word for word. Do
+  NOT summarize, shorten, or drop sentences — dropping narration makes the
+  video too short and is the #1 failure. Split long sections into 2-4 scenes
+  so each scene simulates ONE idea, but keep every sentence.
+- EVERY concept must be simulated by the MOST SPECIFIC primitive. Using
+  concept_card for a mechanism, interaction, or how-to-take scene is a
+  failure — pick receptor_binding / enzyme_inhibition / pathway_switch /
+  channel_transporter / drug_interactions / how_to_take instead, and put the
+  REAL named target from the script into its params.
+- Open with title_card, put molecule_intro (name "${medicationName}") right
+  after, and give the mechanism its own specific primitive(s) naming the real
+  target. Close with outro_card.
 
 ${ANIMATION_PRIMITIVE_CATALOG}`;
 
