@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { join } from 'path';
 import { getRunChecked, runStateTransition } from '@yva/db';
 import { getImageProvider, getTtsProvider } from '@yva/providers';
@@ -32,9 +33,12 @@ export async function stepAssets(ctx: StepContext, runId: string, epoch: number)
     const scene = storyboard.scenes[i]!;
     const n = String(i + 1).padStart(3, '0');
 
-    // Narration — idempotent: skip scenes whose validated artifact exists.
+    // Narration — idempotent: skip only when a validated artifact exists AND
+    // was generated from this exact narration text (script revisions
+    // invalidate stale audio).
+    const audioSha = contentSha(scene.narration);
     const audioRel = ctx.store.relativePath(runId, 'audio', `scene_${n}.mp3`);
-    if (!(await artifactFileExists(ctx, runId, audioRel))) {
+    if (!(await artifactFileExists(ctx, runId, audioRel, audioSha))) {
       const audioAbs = ctx.store.absolutePath(audioRel);
       const result = await tts.synthesize(scene.narration, audioAbs);
       const audioMeta = await validateAudio(audioAbs, 0.8);
@@ -43,12 +47,14 @@ export async function stepAssets(ctx: StepContext, runId: string, epoch: number)
         sceneIndex: i,
         durationSec: audioMeta.durationSec,
         voice: result.voice,
+        contentSha: audioSha,
       });
     }
 
-    // Illustration.
+    // Illustration — same content-hash invalidation on the prompt.
+    const imageSha = contentSha(scene.imagePrompt);
     const imageRel = ctx.store.relativePath(runId, 'images', `scene_${n}.png`);
-    if (!(await artifactFileExists(ctx, runId, imageRel))) {
+    if (!(await artifactFileExists(ctx, runId, imageRel, imageSha))) {
       const imageAbs = ctx.store.absolutePath(imageRel);
       const result = await images.generate(scene.imagePrompt, imageAbs);
       const imageMeta = await validateImage(imageAbs, {
@@ -61,6 +67,7 @@ export async function stepAssets(ctx: StepContext, runId: string, epoch: number)
         sceneIndex: i,
         width: imageMeta.width,
         height: imageMeta.height,
+        contentSha: imageSha,
       });
     }
     ctx.log.info({ runId, scene: scene.id, index: i }, 'scene assets ready');
@@ -68,12 +75,14 @@ export async function stepAssets(ctx: StepContext, runId: string, epoch: number)
 
   // Thumbnail: generated base art + composed title text at 1280x720.
   const thumbBaseRel = ctx.store.relativePath(runId, 'images', 'thumbnail_base.png');
-  if (!(await artifactFileExists(ctx, runId, thumbBaseRel))) {
+  const thumbSha = contentSha(storyboard.thumbnailPrompt);
+  if (!(await artifactFileExists(ctx, runId, thumbBaseRel, thumbSha))) {
     const baseAbs = ctx.store.absolutePath(thumbBaseRel);
     const result = await images.generate(storyboard.thumbnailPrompt, baseAbs);
     await validateImage(baseAbs, { minWidth: 1024, minHeight: 720, minBytes: 10_000 });
     await ctx.store.record(runId, 'scene_image', thumbBaseRel, result.mimeType, result.provider, {
       role: 'thumbnail_base',
+      contentSha: thumbSha,
     });
   }
   const thumbRel = ctx.store.relativePath(runId, 'thumbnail.jpg');
@@ -97,13 +106,24 @@ export async function stepAssets(ctx: StepContext, runId: string, epoch: number)
   await enqueueStep(ctx.queue, runId, 'render', epoch);
 }
 
+/** Short content hash used to invalidate assets when a script revision
+ * changes a scene's narration or image prompt. */
+function contentSha(text: string): string {
+  return createHash('sha256').update(text).digest('hex').slice(0, 16);
+}
+
 async function artifactFileExists(
   ctx: StepContext,
   runId: string,
   relativePath: string,
+  expectedContentSha?: string,
 ): Promise<boolean> {
   const record = await ctx.prisma.artifact.findFirst({ where: { runId, relativePath } });
   if (!record) return false;
+  if (expectedContentSha) {
+    const meta = (record.meta ?? {}) as { contentSha?: string };
+    if (meta.contentSha !== expectedContentSha) return false; // stale — regenerate
+  }
   const info = await stat(ctx.store.absolutePath(relativePath)).catch(() => null);
   return info !== null && info.size === record.bytes;
 }
@@ -122,12 +142,13 @@ export async function stepRender(ctx: StepContext, runId: string, epoch: number)
     const n = String(i + 1).padStart(3, '0');
     const imageRel = ctx.store.relativePath(runId, 'images', `scene_${n}.png`);
     const audioRel = ctx.store.relativePath(runId, 'audio', `scene_${n}.mp3`);
-    // Hard requirement: every scene's assets must exist and match records.
-    if (!(await artifactFileExists(ctx, runId, imageRel))) {
-      throw new Error(`Scene ${scene.id}: image asset missing (${imageRel})`);
+    // Hard requirement: every scene's assets must exist, match records, and
+    // match the CURRENT storyboard content (no stale-revision assets).
+    if (!(await artifactFileExists(ctx, runId, imageRel, contentSha(scene.imagePrompt)))) {
+      throw new Error(`Scene ${scene.id}: image asset missing or stale (${imageRel})`);
     }
-    if (!(await artifactFileExists(ctx, runId, audioRel))) {
-      throw new Error(`Scene ${scene.id}: narration asset missing (${audioRel})`);
+    if (!(await artifactFileExists(ctx, runId, audioRel, contentSha(scene.narration)))) {
+      throw new Error(`Scene ${scene.id}: narration asset missing or stale (${audioRel})`);
     }
     scenes.push({
       imagePath: ctx.store.absolutePath(imageRel),

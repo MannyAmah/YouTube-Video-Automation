@@ -74,11 +74,24 @@ FACTUAL DISCIPLINE — this is non-negotiable:
     history_and_development: 'How this medication came to exist and reaches patients.',
   };
 
+  const validIds = evidence.sources.map((s) => s.id);
+  const minWords = Math.round((brief.targetDurationSec / 60) * 150);
   const user = `Write the video script.
 
 Medication: ${evidence.genericName}
 Angle: ${brief.angle} — ${angleInstruction[brief.angle] ?? angleInstruction.complete_guide}
-Target length: about ${Math.round(brief.targetDurationSec / 60)} minutes of narration (~${Math.round((brief.targetDurationSec / 60) * 140)} words).
+
+LENGTH — the single most common failure. The narration (hook + every section
+narration + outro) MUST total AT LEAST ${minWords} words. Count as you write.
+Produce 7-9 sections, each 110-170 narration words. For every fact: state it
+simply, give a metaphor a five-year-old would picture, add one everyday
+example, then say what it means for the viewer. Do not be terse.
+
+CITATIONS — claim.sourceIds must be chosen ONLY from this exact list of ids
+(copy them verbatim, including the "label_" prefix):
+${validIds.map((id) => `  - ${id}`).join('\n')}
+Any other id (e.g. "clinical_pharmacology" without the prefix) is rejected.
+
 Audience: ${brief.audienceNote}
 ${
   priorFailures.length > 0

@@ -80,8 +80,10 @@ export async function stepScript(ctx: StepContext, runId: string, epoch: number)
   });
 
   const version = (lastScript?.version ?? 0) + 1;
-  await ctx.prisma.script.create({
-    data: { runId, version, content: script as object },
+  await ctx.prisma.script.upsert({
+    where: { runId_version: { runId, version } },
+    create: { runId, version, content: script as object },
+    update: { content: script as object, review: undefined },
   });
   await ctx.store.saveJson(runId, 'script_json', `script_v${version}.json`, script, provider.name, {
     version,
@@ -115,7 +117,7 @@ export async function stepScriptReview(
   const evidence = await loadEvidence(ctx, runId);
   const { script, id: scriptId } = await loadLatestScript(ctx, runId);
 
-  const result = reviewScript(script, evidence);
+  const result = reviewScript(script, evidence, run.brief.targetDurationSec);
   await ctx.prisma.script.update({ where: { id: scriptId }, data: { review: result as object } });
 
   if (!result.ok) {
@@ -207,8 +209,10 @@ export async function stepStoryboard(ctx: StepContext, runId: string, epoch: num
 
   const storyboard = StoryboardSchema.parse({ ...generated, scenes });
 
-  await ctx.prisma.storyboard.create({
-    data: { runId, version, content: storyboard as object },
+  await ctx.prisma.storyboard.upsert({
+    where: { runId_version: { runId, version } },
+    create: { runId, version, content: storyboard as object },
+    update: { content: storyboard as object },
   });
   await ctx.store.saveJson(
     runId,

@@ -33,8 +33,37 @@ const REQUIRED_DISCLAIMER_TERMS = ['education', 'doctor', 'pharmacist'];
  * Script review policy — every check must pass before a script may proceed
  * to storyboarding.
  */
-export function reviewScript(script: Script, evidence: MedicationEvidence): PolicyResult {
+/** Average spoken words per second used for duration estimates. */
+export const NARRATION_WPS = 2.35;
+
+export function scriptWordCount(script: Script): number {
+  return [script.hook, ...script.sections.map((s) => s.narration), script.outro]
+    .join(' ')
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
+export function reviewScript(
+  script: Script,
+  evidence: MedicationEvidence,
+  targetDurationSec?: number,
+): PolicyResult {
   const failures: string[] = [];
+
+  // 0. Length: a script far shorter than target wastes the video slot and
+  // fails QC after paid media generation — catch it here, before any spend.
+  if (targetDurationSec) {
+    const words = scriptWordCount(script);
+    const estimatedSec = words / NARRATION_WPS;
+    const minSec = targetDurationSec * 0.65;
+    if (estimatedSec < minSec) {
+      const neededWords = Math.ceil(minSec * NARRATION_WPS);
+      failures.push(
+        `Script too short: ~${Math.round(estimatedSec)}s of narration (${words} words) for a ${targetDurationSec}s target. ` +
+          `Expand every section with more explanation, metaphors, and examples to at least ${neededWords} words total.`,
+      );
+    }
+  }
   const sourceIds = new Set(evidence.sources.map((s) => s.id));
 
   // 1. Citation coverage: every claim's sources must exist in the ledger.
@@ -128,7 +157,7 @@ export function reviewQc(qc: QcReport, targetDurationSec: number): PolicyResult 
 }
 
 /** Maximum automatic script revision attempts before the run fails. */
-export const MAX_SCRIPT_REVISIONS = 3;
+export const MAX_SCRIPT_REVISIONS = 4;
 
 /**
  * Daily publish slots (UTC) — morning, afternoon, evening in US Eastern
