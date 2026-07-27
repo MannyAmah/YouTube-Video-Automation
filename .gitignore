@@ -12,3 +12,4 @@ coverage/
 apps/web/dist/
 tmp/
 .vercel
+dump.rdb
