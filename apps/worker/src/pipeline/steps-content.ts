@@ -1,5 +1,8 @@
 import { getRunChecked, runStateTransition } from '@yva/db';
 import {
+  AnimationPlan,
+  AnimationPlanSchema,
+  AnimationScene,
   ContentBriefSchema,
   MAX_SCRIPT_REVISIONS,
   MedicationEvidence,
@@ -7,20 +10,16 @@ import {
   reviewScript,
   Script,
   ScriptSchema,
-  Storyboard,
-  StoryboardSchema,
-  StoryboardScene,
 } from '@yva/shared';
 import { getTextProvider } from '@yva/providers';
 import { gatherEvidence } from '@yva/research';
 import { readFile } from 'fs/promises';
 import type { StepContext } from './context';
 import {
+  ANIMATION_PLAN_SCHEMA_DESCRIPTION,
+  buildAnimationPlanPrompt,
   buildScriptPrompt,
-  buildStoryboardPrompt,
   SCRIPT_SCHEMA_DESCRIPTION,
-  STORYBOARD_SCHEMA_DESCRIPTION,
-  VISUAL_STYLE,
 } from './prompts';
 import { enqueueStep } from '../queues';
 
@@ -162,76 +161,64 @@ export async function stepScriptReview(
 /* ------------------------------------------------------------------------- */
 
 export async function stepStoryboard(ctx: StepContext, runId: string, epoch: number): Promise<void> {
-  await getRunChecked(ctx.prisma, runId);
+  const run = await getRunChecked(ctx.prisma, runId);
   const { script, version } = await loadLatestScript(ctx, runId);
 
   const provider = getTextProvider(ctx.env);
-  const prompt = buildStoryboardPrompt(script);
-  const { data: generated, usage } = await provider.generateStructured<Storyboard>({
+  const prompt = buildAnimationPlanPrompt(script, run.brief.medicationQuery);
+  const { data: generated, usage } = await provider.generateStructured<AnimationPlan>({
     system: prompt.system,
     user: prompt.user,
-    schema: StoryboardSchema,
-    schemaDescription: STORYBOARD_SCHEMA_DESCRIPTION,
-    maxOutputTokens: 10_000,
+    schema: AnimationPlanSchema,
+    schemaDescription: ANIMATION_PLAN_SCHEMA_DESCRIPTION,
+    maxOutputTokens: 12_000,
   });
 
-  // Deterministic guarantees regardless of model behaviour: the hook opens,
-  // the outro + spoken disclaimer close. These are appended in code so a
-  // model omission can never drop the medical disclaimer.
-  const scenes: StoryboardScene[] = [...generated.scenes];
-  const hookCovered = scenes.some((s) => s.narration.includes(script.hook.slice(0, 40)));
-  if (!hookCovered) {
-    scenes.unshift({
-      id: 'scene_hook',
-      sectionId: 'hook',
-      narration: script.hook,
-      imagePrompt: `Opening scene: a curious, hopeful person holding a pill bottle with a big friendly question mark above. ${VISUAL_STYLE}`,
-      caption: '',
-    });
-  }
-  const outroCovered = scenes.some((s) => s.narration.includes(script.outro.slice(0, 40)));
-  if (!outroCovered) {
+  // Deterministic guarantee: the spoken disclaimer always closes the video,
+  // regardless of model behaviour — a model omission can never drop it.
+  const scenes: AnimationScene[] = [...generated.scenes];
+  const disclaimerCovered = scenes.some((s) =>
+    s.narration.toLowerCase().includes('education') && s.narration.toLowerCase().includes('doctor'),
+  );
+  if (!disclaimerCovered) {
     scenes.push({
-      id: 'scene_outro',
-      sectionId: 'outro',
-      narration: script.outro,
-      imagePrompt: `Closing scene: the same friendly character feeling confident and reassured, warm sunrise colors. ${VISUAL_STYLE}`,
-      caption: '',
+      id: 'scene_disclaimer',
+      sectionId: 'disclaimer',
+      narration: script.disclaimer,
+      primitive: 'concept_card',
+      params: {
+        headline: 'This is education, not medical advice',
+        sublines: ['Always talk to your doctor or pharmacist', 'before changing any medication'],
+      },
+      caption: 'Education only — talk to your doctor',
     });
   }
-  scenes.push({
-    id: 'scene_disclaimer',
-    sectionId: 'disclaimer',
-    narration: script.disclaimer,
-    imagePrompt: `A kind nurse character and a doctor character side by side with a heart symbol between them, calm and trustworthy. ${VISUAL_STYLE}`,
-    caption: 'Education only — talk to your doctor',
-  });
 
-  const storyboard = StoryboardSchema.parse({ ...generated, scenes });
+  const plan = AnimationPlanSchema.parse({ ...generated, scenes });
 
   await ctx.prisma.storyboard.upsert({
     where: { runId_version: { runId, version } },
-    create: { runId, version, content: storyboard as object },
-    update: { content: storyboard as object },
+    create: { runId, version, content: plan as object },
+    update: { content: plan as object },
   });
   await ctx.store.saveJson(
     runId,
     'storyboard_json',
-    `storyboard_v${version}.json`,
-    storyboard,
+    `animation_plan_v${version}.json`,
+    plan,
     provider.name,
-    { version, usage, sceneCount: storyboard.scenes.length },
+    { version, usage, sceneCount: plan.scenes.length },
   );
 
   await runStateTransition(ctx.prisma, runId, 'STORYBOARDING', 'GENERATING_ASSETS');
   await enqueueStep(ctx.queue, runId, 'assets', epoch);
 }
 
-export async function loadLatestStoryboard(ctx: StepContext, runId: string): Promise<Storyboard> {
+export async function loadAnimationPlan(ctx: StepContext, runId: string): Promise<AnimationPlan> {
   const row = await ctx.prisma.storyboard.findFirst({
     where: { runId },
     orderBy: { version: 'desc' },
   });
-  if (!row) throw new Error(`Run ${runId} has no storyboard`);
-  return StoryboardSchema.parse(row.content);
+  if (!row) throw new Error(`Run ${runId} has no animation plan`);
+  return AnimationPlanSchema.parse(row.content);
 }

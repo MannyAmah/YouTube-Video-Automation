@@ -148,6 +148,99 @@ ${JSON.stringify(script)}
   return { system, user };
 }
 
+/* -------------------------------------------------------------------------
+ * Animation plan — maps every script concept to an animated scene.
+ * ----------------------------------------------------------------------- */
+
+export const ANIMATION_PLAN_SCHEMA_DESCRIPTION = `AnimationPlan JSON:
+{
+  "scenes": [
+    {
+      "id": "scene_1",
+      "sectionId": "<the script section id this scene belongs to, or 'hook'/'outro'>",
+      "narration": "<exact narration spoken during this scene>",
+      "primitive": "<one primitive name from the catalog>",
+      "params": { ... primitive-specific fields ... },
+      "caption": "<optional short on-screen caption, max 80 chars>"
+    }
+  ],
+  "thumbnailPrompt": "<prompt for a bold, friendly thumbnail illustration>",
+  "thumbnailTitleText": "<max 40 chars>"
+}`;
+
+export const ANIMATION_PRIMITIVE_CATALOG = `PRIMITIVE CATALOG — choose the ONE that best simulates each concept, and
+fill its params. Every scene must actually SHOW the process, not just label it.
+
+- title_card       params: {title, subtitle}
+- bloodstream_level params: {title?, substanceLabel, level: "high"|"normal"|"low", color?}
+      Shows a blood vessel filling with particles at that level.
+- organ_action     params: {title?, organ: "liver"|"kidney"|"heart"|"stomach"|"gut"|"pancreas"|"lung"|"brain"|"muscle"|"thyroid", action: "releases"|"absorbs"|"filters", substanceLabel, note?}
+      An organ emitting/absorbing a substance to/from the blood.
+- molecule_intro   params: {name, caption?}
+      The REAL drug molecule (rendered from its true structure) glides in.
+      Use the medication's generic name as "name".
+- receptor_binding params: {title?, drugLabel, receptorLabel, effect: "activates"|"blocks"}
+      Drug docks into a receptor (lock & key) and switches it on/off.
+- enzyme_inhibition params: {title?, drugLabel, enzymeLabel, substrateLabel, productLabel}
+      Drug blocks an enzyme so the product stops being made.
+- channel_transporter params: {title?, channelLabel, ion, action: "block"|"open"}
+      Drug blocks/opens an ion channel in a membrane.
+- pathway_switch   params: {title?, panelTitle?, nodeLabel, nodeSubtitle?, state: "on"|"off", downstreamLabel, downstreamEffect: "down"|"up"}
+      Inside a cell: a signaling node switches and dials a downstream process up/down.
+- cell_uptake      params: {title?, cellLabel, substanceLabel}
+      Cells pull a substance out of the blood (e.g. insulin sensitivity).
+- gauge            params: {title?, metricLabel, from: "high"|"normal"|"low", to: "high"|"normal"|"low"}
+      A meter moving between states (blood pressure, blood sugar, cholesterol...).
+- journey          params: {title?, steps: ["pill","stomach","bloodstream","target",...]}
+      Pharmacokinetics: the drug's path through the body.
+- warning_vignette params: {title?, items: ["headache","nausea",...]}
+      Side effects as friendly signposts.
+- two_panel_compare params: {title?, leftTitle, rightTitle, leftNote?, rightNote?}
+      Before/after or with/without comparison.
+- concept_card     params: {headline, sublines?: [..]}   (generic fallback)
+- outro_card       params: {line1, line2}
+
+Match the primitive to the biology: mechanism that activates/inhibits a
+receptor -> receptor_binding; blocks an enzyme -> enzyme_inhibition; a
+calcium/sodium/potassium channel -> channel_transporter; an intracellular
+signal like AMPK -> pathway_switch; lowering a measurable number -> gauge;
+an organ over/under-producing something -> organ_action.`;
+
+export function buildAnimationPlanPrompt(
+  script: Script,
+  medicationName: string,
+): { system: string; user: string } {
+  const system = `${CHANNEL_VOICE}
+
+You are the visual director for a PROGRAMMATIC ANIMATION engine (think
+3Blue1Brown for medicine). You do NOT write image prompts. Instead you break
+the script into animated scenes, and for EACH scene you choose an animation
+primitive that literally simulates the concept being narrated, then supply
+its parameters.
+
+Hard rules:
+- Cover the script in order: the hook, EVERY section's narration, the outro,
+  and finally the disclaimer. Split long sections into 2-3 scenes so each
+  scene simulates ONE idea.
+- Scene narration text, concatenated in order, must reproduce the script's
+  narration faithfully (you may split sentences across scenes, not rewrite).
+- EVERY concept mentioned must be simulated by an appropriate primitive —
+  never use concept_card when a specific primitive fits.
+- Open with title_card, close with outro_card. Include one molecule_intro
+  for the drug near the start. Represent the mechanism of action with the
+  most specific primitive(s) available.
+- Use the real medication generic name "${medicationName}" for molecule_intro.
+
+${ANIMATION_PRIMITIVE_CATALOG}`;
+
+  const user = `Turn this script into an animation plan. Produce 8-14 scenes.
+
+<${SCRIPT_MARKER}>
+${JSON.stringify(script)}
+</${SCRIPT_MARKER}>`;
+  return { system, user };
+}
+
 /** YouTube description with a real citation ledger appended. */
 export function buildVideoDescription(script: Script, evidence: MedicationEvidence): string {
   const uniqueUrls = new Map<string, string>();

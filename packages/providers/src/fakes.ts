@@ -3,12 +3,12 @@ import { createHash } from 'crypto';
 import { stat } from 'fs/promises';
 import { promisify } from 'util';
 import {
+  AnimationPlan,
+  AnimationPlanSchema,
   MedicationEvidence,
   MedicationEvidenceSchema,
   Script,
   ScriptSchema,
-  Storyboard,
-  StoryboardSchema,
 } from '@yva/shared';
 import {
   ImageProvider,
@@ -124,33 +124,52 @@ function buildFakeScript(evidence: MedicationEvidence): Script {
   return ScriptSchema.parse(script);
 }
 
-function buildFakeStoryboard(script: Script): Storyboard {
-  const style =
-    'Soft flat illustration, warm pastel palette, rounded shapes, friendly and calm, no text in image';
-  const scenes = script.sections.flatMap((section, i) => [
+interface FakeScene {
+  id: string;
+  sectionId: string;
+  narration: string;
+  primitive: string;
+  params: Record<string, unknown>;
+  caption: string;
+}
+
+function buildFakeAnimationPlan(script: Script): AnimationPlan {
+  // Deterministic plan exercising several primitives — enough to drive the
+  // real Manim engine end-to-end in test mode.
+  const scenes: FakeScene[] = [
     {
-      id: `scene_${i * 2 + 1}`,
-      sectionId: section.id,
-      narration: section.narration.split(/(?<=[.!?])\s+/).slice(0, 2).join(' ') || section.narration,
-      imagePrompt: `${section.visualIdea}. ${style}`,
-      caption: section.heading.slice(0, 78),
-    },
-    {
-      id: `scene_${i * 2 + 2}`,
-      sectionId: section.id,
-      narration:
-        section.narration.split(/(?<=[.!?])\s+/).slice(2).join(' ') || section.narration,
-      imagePrompt: `Closer view: ${section.visualIdea}. ${style}`,
+      id: 'scene_1',
+      sectionId: 'hook',
+      narration: script.hook,
+      primitive: 'title_card',
+      params: { title: script.title.replace(/\s*\[TEST RENDER\]\s*/, ''), subtitle: 'explained simply' },
       caption: '',
     },
-  ]);
-  const storyboard: Storyboard = {
+  ];
+  script.sections.forEach((section, i) => {
+    scenes.push({
+      id: `scene_${i + 2}`,
+      sectionId: section.id,
+      narration: section.narration,
+      primitive: 'concept_card',
+      params: { headline: section.heading, sublines: [] },
+      caption: section.heading.slice(0, 78),
+    });
+  });
+  scenes.push({
+    id: `scene_${script.sections.length + 2}`,
+    sectionId: 'outro',
+    narration: `${script.outro} ${script.disclaimer}`,
+    primitive: 'outro_card',
+    params: { line1: 'Education only —', line2: 'talk to your doctor or pharmacist.' },
+    caption: '',
+  });
+
+  return AnimationPlanSchema.parse({
     scenes,
-    styleGuide: style,
-    thumbnailPrompt: `Bold friendly illustration about ${script.title}. ${style}`,
+    thumbnailPrompt: `Bold friendly illustration about ${script.title}`,
     thumbnailTitleText: script.title.replace(/\s*\[TEST RENDER\]\s*/, '').slice(0, 38),
-  };
-  return StoryboardSchema.parse(storyboard);
+  });
 }
 
 export class FakeTextProvider implements TextProvider {
@@ -162,9 +181,9 @@ export class FakeTextProvider implements TextProvider {
     const scriptJson = extractMarked(req.user, SCRIPT_MARKER);
 
     let candidate: unknown;
-    if (req.schemaDescription.includes('Storyboard')) {
+    if (req.schemaDescription.includes('AnimationPlan')) {
       if (!scriptJson) throw new ProviderError(this.name, 'No <SCRIPT_JSON> in prompt', false);
-      candidate = buildFakeStoryboard(ScriptSchema.parse(JSON.parse(scriptJson)));
+      candidate = buildFakeAnimationPlan(ScriptSchema.parse(JSON.parse(scriptJson)));
     } else if (req.schemaDescription.includes('Script')) {
       if (!evidenceJson) throw new ProviderError(this.name, 'No <EVIDENCE_JSON> in prompt', false);
       candidate = buildFakeScript(MedicationEvidenceSchema.parse(JSON.parse(evidenceJson)));

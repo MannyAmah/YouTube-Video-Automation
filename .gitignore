@@ -13,3 +13,9 @@ apps/web/dist/
 tmp/
 .vercel
 dump.rdb
+
+# animator local render output
+services/animator/media/
+services/animator/**/__pycache__/
+**/__pycache__/
+*.pyc
