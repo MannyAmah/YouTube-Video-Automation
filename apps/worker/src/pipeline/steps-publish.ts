@@ -199,6 +199,17 @@ export async function stepPublish(ctx: StepContext, runId: string, epoch: number
     return;
   }
 
+  // Honor the publish slot: if this job fired early (e.g. crash recovery),
+  // park it again until the scheduled time.
+  const scheduled = await ctx.prisma.publication.findUnique({ where: { runId } });
+  if (scheduled?.scheduledFor && scheduled.scheduledFor.getTime() > Date.now() + 60_000) {
+    await enqueueStep(ctx.queue, runId, 'publish', epoch + 1, {
+      delay: scheduled.scheduledFor.getTime() - Date.now(),
+    });
+    ctx.log.info({ runId, slot: scheduled.scheduledFor }, 'publish re-parked until its slot');
+    return;
+  }
+
   // Re-check quota at publish time.
   const count = await publishedToday(ctx, run.channelId);
   if (count >= run.channel.maxPublishesPerDay) {
