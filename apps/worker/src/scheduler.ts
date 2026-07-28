@@ -158,7 +158,10 @@ const RESUMABLE_STATES = [...ACTIVE_STATES, 'AWAITING_APPROVAL', 'APPROVED', 'SC
  */
 export async function resumeRuns(ctx: StepContext): Promise<void> {
   const paused = await isSystemPaused(ctx);
-  const staleBefore = new Date(Date.now() - 20 * 60 * 1000);
+  // Longer than the longest render so a run actively rendering is never
+  // mistaken for stalled (concurrency=1 + state guards make a duplicate a
+  // no-op anyway, but this avoids the noise).
+  const staleBefore = new Date(Date.now() - 40 * 60 * 1000);
   const runs = await ctx.prisma.productionRun.findMany({
     where: { state: { in: [...RESUMABLE_STATES] }, updatedAt: { lt: staleBefore } },
     take: 20,

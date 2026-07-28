@@ -45,9 +45,14 @@ export class WorkerService implements OnModuleDestroy {
     this.workers = [
       new Worker<PipelineJobData>(PIPELINE_QUEUE, (job) => processPipelineJob(ctx, job), {
         connection: createRedis(this.env.REDIS_URL),
-        concurrency: 2,
+        // Serialize: Manim renders are CPU-heavy; running two at once starves
+        // both and risks OOM. One at a time keeps renders reliable.
+        concurrency: 1,
         stalledInterval: 60_000,
-        lockDuration: 10 * 60_000, // renders and uploads are long-running
+        // A full deep render (20-30 scenes) can take 20-30 min; the lock must
+        // outlast it or the job is wrongly treated as stalled and re-run.
+        lockDuration: 45 * 60_000,
+        lockRenewTime: 60_000,
       }),
       new Worker(SCHEDULER_QUEUE, (job) => processSchedulerJob(ctx, job), {
         connection: createRedis(this.env.REDIS_URL),
