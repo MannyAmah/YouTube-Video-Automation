@@ -195,20 +195,17 @@ export async function stepRender(ctx: StepContext, runId: string, epoch: number)
     entries: srt.split('\n\n').length,
   });
 
-  // Concat with a uniform re-encode, burning the synchronized captions in a
-  // legible boxed style along the bottom.
+  // Concat with a uniform re-encode. Captions are NOT burned into the video
+  // (the on-screen animation carries the meaning, in sync with the voice).
+  // The SRT is kept as a separate artifact and can be attached to YouTube as
+  // an optional CC track for accessibility.
   const listPath = join(animDir, 'concat.txt');
   await writeFile(listPath, withAudio.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join('\n'), 'utf8');
   const videoRel = ctx.store.relativePath(runId, 'video.mp4');
-  const subFilter =
-    `subtitles=${ffescapeFilterPath(srtAbs)}:force_style='` +
-    'FontName=DejaVu Sans,Fontsize=17,Bold=1,PrimaryColour=&H00FFFFFF&,' +
-    "OutlineColour=&H00101726&,BorderStyle=3,Outline=2,Shadow=0,MarginV=40'";
   await runFfmpeg([
     '-f', 'concat',
     '-safe', '0',
     '-i', listPath,
-    '-vf', subFilter,
     '-c:v', 'libx264',
     '-preset', 'medium',
     '-crf', '20',
@@ -220,17 +217,11 @@ export async function stepRender(ctx: StepContext, runId: string, epoch: number)
   ]);
   await ctx.store.record(runId, 'video_mp4', videoRel, 'video/mp4', 'manim+ffmpeg', {
     sceneCount: plan.scenes.length,
-    captionsBurned: true,
+    captionsBurned: false,
   });
 
   await runStateTransition(ctx.prisma, runId, 'RENDERING', 'QUALITY_CHECK');
   await enqueueStep(ctx.queue, runId, 'quality_check', epoch);
-}
-
-/** Escape a filesystem path for use inside an ffmpeg -vf filter argument. */
-function ffescapeFilterPath(p: string): string {
-  // ffmpeg filter parsing needs ':' and '\' escaped inside the option value.
-  return p.replace(/\\/g, '\\\\').replace(/:/g, '\\:').replace(/'/g, "\\'");
 }
 
 /** Merge the scene caption into params so on-screen text is available. */

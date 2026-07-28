@@ -11,6 +11,10 @@ export const EVIDENCE_SOURCE_TYPES = [
   'medlineplus',
   'rxnorm',
   'openfda_faers',
+  // Established molecular pharmacology (mechanism of action at the molecular
+  // level: target, binding, downstream signalling). Used ONLY for mechanism
+  // visuals; efficacy/safety/dosing must still cite the FDA/NIH label sources.
+  'pharmacology',
 ] as const;
 
 export const EvidenceSourceSchema = z.object({
@@ -153,6 +157,11 @@ export const ANIMATION_PRIMITIVES = [
   'two_panel_compare',
   'drug_interactions',
   'how_to_take',
+  // Real-biology mechanism primitives (render real molecular structures).
+  'molecular_binding',
+  'enzyme_reaction',
+  'signaling_cascade',
+  'side_effect_mechanism',
   'concept_card',
   'outro_card',
 ] as const;
