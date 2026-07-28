@@ -173,15 +173,44 @@ export async function stepStoryboard(ctx: StepContext, runId: string, epoch: num
   const chunks = chunkScript(script);
 
   // 2. Ask the model ONLY to choose a visual primitive + params per chunk.
+  //    Retry when too many scenes fall back to a generic concept_card — we
+  //    want almost every scene to be a specific, illustrative primitive.
   const provider = getTextProvider(ctx.env);
   const prompt = buildVisualChoicesPrompt(chunks, script, run.brief.medicationQuery);
-  const { data: choicesResult, usage } = await provider.generateStructured<VisualChoices>({
-    system: prompt.system,
-    user: prompt.user,
-    schema: VisualChoicesSchema,
-    schemaDescription: VISUAL_CHOICES_SCHEMA_DESCRIPTION,
-    maxOutputTokens: 12_000,
-  });
+  let choicesResult: VisualChoices | null = null;
+  let usage = { inputTokens: 0, outputTokens: 0 };
+  let user = prompt.user;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const result = await provider.generateStructured<VisualChoices>({
+      system: prompt.system,
+      user,
+      schema: VisualChoicesSchema,
+      schemaDescription: VISUAL_CHOICES_SCHEMA_DESCRIPTION,
+      maxOutputTokens: 12_000,
+    });
+    usage = result.usage;
+    // Keep the attempt with the fewest generic cards.
+    if (
+      !choicesResult ||
+      cardCountOf(result.data) < cardCountOf(choicesResult)
+    ) {
+      choicesResult = result.data;
+    }
+    // Count concept_card choices outside the final disclaimer scene.
+    const cardIdx = result.data.choices
+      .map((c, i) => (c.primitive === 'concept_card' ? i + 1 : 0))
+      .filter((n) => n > 0 && n < chunks.length); // exclude disclaimer (last)
+    if (cardIdx.length <= Math.max(1, Math.floor(chunks.length * 0.12))) break;
+    user =
+      `${prompt.user}\n\nYour previous choices used concept_card for scenes ` +
+      `${cardIdx.join(', ')}. Those are generic — replace EACH with a specific ` +
+      `primitive that illustrates that scene's narration (bloodstream_level, ` +
+      `organ_action, gauge, two_panel_compare, cell_uptake, journey, ` +
+      `molecular_binding, enzyme_reaction, signaling_cascade, side_effect_mechanism, ` +
+      `receptor_binding, channel_transporter, pathway_switch, drug_interactions, ` +
+      `how_to_take). Only the final disclaimer scene may be concept_card.`;
+  }
+  if (!choicesResult) throw new Error('Visual choices generation produced nothing');
 
   // 3. Zip fixed narration with model visual choices. If the model returned
   //    the wrong count, pad/truncate defensively so we never crash.
@@ -245,6 +274,10 @@ export async function stepStoryboard(ctx: StepContext, runId: string, epoch: num
 
   await runStateTransition(ctx.prisma, runId, 'STORYBOARDING', 'GENERATING_ASSETS');
   await enqueueStep(ctx.queue, runId, 'assets', epoch);
+}
+
+function cardCountOf(choices: VisualChoices): number {
+  return choices.choices.filter((c) => c.primitive === 'concept_card').length;
 }
 
 export async function loadAnimationPlan(ctx: StepContext, runId: string): Promise<AnimationPlan> {
