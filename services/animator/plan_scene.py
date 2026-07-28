@@ -14,8 +14,11 @@ config.background_color = palette.BG
 
 class PlanScene(Scene):
     def construct(self):
-        self.camera.background_color = palette.BG
         spec = json.load(open(os.environ["YVA_SPEC"]))
+        # Per-medication visual theme (varies BG + accent colors).
+        palette.set_theme(int(spec.get("theme", 0)))
+        config.background_color = palette.BG
+        self.camera.background_color = palette.BG
         target = float(spec.get("target_seconds", 6.0))
         mol_dir = spec.get("mol_dir", ".")
         ptype = spec.get("type", "concept_card")

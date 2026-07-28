@@ -48,11 +48,12 @@ export async function renderAnimationScenes(
   outDir: string,
   molDir: string,
   fps = 30,
+  theme = 0,
 ): Promise<AnimatorManifest> {
   const { python, dir } = animatorPaths(env);
   await mkdir(outDir, { recursive: true });
   await mkdir(molDir, { recursive: true });
-  const plan = { fps, width: 1920, height: 1080, mol_dir: molDir, scenes };
+  const plan = { fps, width: 1920, height: 1080, mol_dir: molDir, theme, scenes };
   const planPath = join(outDir, 'plan.json');
   await writeFile(planPath, JSON.stringify(plan, null, 2), 'utf8');
 
