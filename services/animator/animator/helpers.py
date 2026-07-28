@@ -35,6 +35,21 @@ def label(text, color=P.INK, scale=0.42, weight="NORMAL"):
     return Text(text, color=color, weight=weight).scale(scale)
 
 
+def chip(text, color=P.INK, scale=0.44, weight="BOLD", pad=0.22):
+    """A label on a translucent dark rounded panel so it is legible on any
+    theme background (the accent `color` stays as the ink for meaning)."""
+    from manim import RoundedRectangle, VGroup
+    txt = Text(text, color=color, weight=weight).scale(scale)
+    panel = RoundedRectangle(
+        corner_radius=0.14,
+        width=txt.width + pad * 2,
+        height=txt.height + pad * 1.3,
+    ).set_fill("#0a1017", opacity=0.82).set_stroke(color, width=2, opacity=0.9)
+    panel.move_to(txt.get_center())
+    grp = VGroup(panel, txt)
+    return grp
+
+
 def vessel(width=12, height=2.4, center=DOWN * 0.4):
     v = RoundedRectangle(width=width, height=height, corner_radius=height / 2)
     v.set_fill(P.BLOOD, opacity=0.55).set_stroke(P.BLOOD_EDGE, width=3)

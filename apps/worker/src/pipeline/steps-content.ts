@@ -21,6 +21,8 @@ import type { StepContext } from './context';
 import {
   buildScriptPrompt,
   buildVisualChoicesPrompt,
+  bioFloorFor,
+  REAL_BIOLOGY_PRIMITIVES,
   SCRIPT_SCHEMA_DESCRIPTION,
   VISUAL_CHOICES_SCHEMA_DESCRIPTION,
 } from './prompts';
@@ -177,10 +179,12 @@ export async function stepStoryboard(ctx: StepContext, runId: string, epoch: num
   //    want almost every scene to be a specific, illustrative primitive.
   const provider = getTextProvider(ctx.env);
   const prompt = buildVisualChoicesPrompt(chunks, script, run.brief.medicationQuery);
+  const cardCap = Math.max(1, Math.floor(chunks.length * 0.12));
+  const bioFloor = bioFloorFor(chunks.length);
   let choicesResult: VisualChoices | null = null;
   let usage = { inputTokens: 0, outputTokens: 0 };
   let user = prompt.user;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 5; attempt++) {
     const result = await provider.generateStructured<VisualChoices>({
       system: prompt.system,
       user,
@@ -189,26 +193,56 @@ export async function stepStoryboard(ctx: StepContext, runId: string, epoch: num
       maxOutputTokens: 12_000,
     });
     usage = result.usage;
-    // Keep the attempt with the fewest generic cards.
-    if (
-      !choicesResult ||
-      cardCountOf(result.data) < cardCountOf(choicesResult)
-    ) {
+    // Keep the best attempt: maximize real-biology scenes, then minimize
+    // generic concept_cards. (More real molecular simulation is the goal.)
+    if (!choicesResult || scoreChoices(result.data) > scoreChoices(choicesResult)) {
       choicesResult = result.data;
     }
     // Count concept_card choices outside the final disclaimer scene.
     const cardIdx = result.data.choices
       .map((c, i) => (c.primitive === 'concept_card' ? i + 1 : 0))
       .filter((n) => n > 0 && n < chunks.length); // exclude disclaimer (last)
-    if (cardIdx.length <= Math.max(1, Math.floor(chunks.length * 0.12))) break;
-    user =
-      `${prompt.user}\n\nYour previous choices used concept_card for scenes ` +
-      `${cardIdx.join(', ')}. Those are generic — replace EACH with a specific ` +
-      `primitive that illustrates that scene's narration (bloodstream_level, ` +
-      `organ_action, gauge, two_panel_compare, cell_uptake, journey, ` +
-      `molecular_binding, enzyme_reaction, signaling_cascade, side_effect_mechanism, ` +
-      `receptor_binding, channel_transporter, pathway_switch, drug_interactions, ` +
-      `how_to_take). Only the final disclaimer scene may be concept_card.`;
+    const bioCount = bioCountOf(result.data);
+    const cardsOk = cardIdx.length <= cardCap;
+    const bioOk = bioCount >= bioFloor;
+    if (cardsOk && bioOk) break;
+
+    let escalation = `${prompt.user}\n\nRevise your choices. Keep the same ` +
+      `narration order; change only which primitive each scene uses.`;
+    if (!bioOk) {
+      // Point the model at the exact scenes whose narration is mechanism/
+      // biology and that are NOT yet a real-biology primitive — those are the
+      // ones to convert, so it doesn't force biology onto how-to-take/intro.
+      const eligible = chunks
+        .map((c, i) => ({ n: i + 1, prim: result.data.choices[i]?.primitive, text: c.narration }))
+        .filter((s) => !BIO_SET.has(s.prim ?? '') && isMechanismNarration(s.text))
+        .map((s) => s.n);
+      escalation +=
+        `\n\nCRITICAL: only ${bioCount} of your choices were real-molecule ` +
+        `biology primitives (cell_mechanism, molecular_binding, enzyme_reaction, ` +
+        `signaling_cascade, side_effect_mechanism). This channel REQUIRES at ` +
+        `least ${bioFloor}. ` +
+        (eligible.length
+          ? `These scenes describe the drug's biology but are NOT yet a ` +
+            `real-biology primitive — convert enough of them to reach the ` +
+            `minimum: scenes ${eligible.join(', ')}. `
+          : `Re-examine every mechanism/side-effect scene. `) +
+        `Give each the fitting real-biology primitive with the REAL target and ` +
+        `molecule names from the narration (e.g. drugName, targetLabel, ` +
+        `substrateName, productName, moleculeName). Simulate the mechanism ` +
+        `across MULTIPLE scenes, not one.`;
+    }
+    if (!cardsOk) {
+      escalation +=
+        `\n\nYour choices used concept_card for scenes ${cardIdx.join(', ')}. ` +
+        `Those are generic slop — replace EVERY one with a specific primitive ` +
+        `that illustrates that scene's narration (a real-biology primitive if ` +
+        `it is about the drug's biology, otherwise bloodstream_level, ` +
+        `organ_action, gauge, two_panel_compare, journey, drug_interactions, ` +
+        `how_to_take, or warning_vignette). ONLY the final disclaimer scene may ` +
+        `be concept_card.`;
+    }
+    user = escalation;
   }
   if (!choicesResult) throw new Error('Visual choices generation produced nothing');
 
@@ -278,6 +312,31 @@ export async function stepStoryboard(ctx: StepContext, runId: string, epoch: num
 
 function cardCountOf(choices: VisualChoices): number {
   return choices.choices.filter((c) => c.primitive === 'concept_card').length;
+}
+
+const BIO_SET = new Set<string>(REAL_BIOLOGY_PRIMITIVES);
+function bioCountOf(choices: VisualChoices): number {
+  return choices.choices.filter((c) => BIO_SET.has(c.primitive)).length;
+}
+
+/**
+ * Heuristic: does this narration chunk describe the drug's biology (mechanism,
+ * binding, molecular action, or how/why a side effect develops)? Used only to
+ * point the visual-director model at the right scenes to convert — never to
+ * force a mismatched visual onto how-to-take/intro narration.
+ */
+const MECHANISM_RE =
+  /\b(bind|binds|binding|receptor|enzyme|protein|molecul|mechanism|activat|inhibit|block|signal|cascade|pathway|cell|cellular|membrane|mitochondri|nucleus|transporter|channel|glucose|insulin|cholesterol|acid|hormone|neurotransmitter|dopamine|serotonin|reduces|lowers|raises|produce|convert|metaboli|works by|how it works|why it works|target|dna|gene)\b/i;
+function isMechanismNarration(text: string): boolean {
+  return MECHANISM_RE.test(text);
+}
+
+/**
+ * Rank a visual-choices attempt: heavily reward real-biology scenes, then
+ * penalize generic concept_cards. Higher is better.
+ */
+function scoreChoices(choices: VisualChoices): number {
+  return bioCountOf(choices) * 10 - cardCountOf(choices);
 }
 
 export async function loadAnimationPlan(ctx: StepContext, runId: string): Promise<AnimationPlan> {

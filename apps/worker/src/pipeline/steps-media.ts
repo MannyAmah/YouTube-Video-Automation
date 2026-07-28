@@ -56,8 +56,25 @@ export async function stepAssets(ctx: StepContext, runId: string, epoch: number)
   const thumbSha = contentSha(plan.thumbnailPrompt);
   if (!(await artifactFileExists(ctx, runId, thumbBaseRel, thumbSha))) {
     const baseAbs = ctx.store.absolutePath(thumbBaseRel);
-    const result = await images.generate(plan.thumbnailPrompt, baseAbs);
-    await validateImage(baseAbs, { minWidth: 1024, minHeight: 720, minBytes: 10_000 });
+    // The image API occasionally returns a transient gateway error (HTML body).
+    // Retry with backoff so a hiccup never kills an otherwise-complete pipeline.
+    let result: Awaited<ReturnType<typeof images.generate>> | null = null;
+    let lastErr: unknown = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        result = await images.generate(plan.thumbnailPrompt, baseAbs);
+        await validateImage(baseAbs, { minWidth: 1024, minHeight: 720, minBytes: 10_000 });
+        break;
+      } catch (err) {
+        lastErr = err;
+        ctx.log.warn(
+          { runId, attempt, err: err instanceof Error ? err.message : String(err) },
+          'thumbnail base generation failed; retrying',
+        );
+        await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+      }
+    }
+    if (!result) throw lastErr instanceof Error ? lastErr : new Error('thumbnail generation failed');
     await ctx.store.record(runId, 'scene_image', thumbBaseRel, result.mimeType, result.provider, {
       role: 'thumbnail_base',
       contentSha: thumbSha,
