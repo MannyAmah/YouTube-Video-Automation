@@ -36,3 +36,26 @@ ORGAN_COLORS = {
 
 def organ_color(name: str):
     return ORGAN_COLORS.get(name, ("#6b7a94", "#4a5a74"))
+
+
+# Per-medication visual themes so no two medications' videos look alike.
+THEMES = [
+    {"BG": "#0e1726", "DRUG": "#7db2ff", "DRUG_EDGE": "#4a86e8", "GOOD": "#5fd18c"},
+    {"BG": "#151022", "DRUG": "#b98cff", "DRUG_EDGE": "#8a5ad6", "GOOD": "#5fd18c"},
+    {"BG": "#0d1f1b", "DRUG": "#57d1b4", "DRUG_EDGE": "#2fa088", "GOOD": "#ffd166"},
+    {"BG": "#1c1420", "DRUG": "#ff9bb5", "DRUG_EDGE": "#e0658a", "GOOD": "#7dd3a8"},
+    {"BG": "#0f1a24", "DRUG": "#7dd3ff", "DRUG_EDGE": "#3f9fd6", "GOOD": "#ffb86b"},
+    {"BG": "#181410", "DRUG": "#ffc46b", "DRUG_EDGE": "#e09a3c", "GOOD": "#7db2ff"},
+    {"BG": "#101625", "DRUG": "#9be15d", "DRUG_EDGE": "#6fae35", "GOOD": "#7db2ff"},
+    {"BG": "#141a1e", "DRUG": "#ff8f6b", "DRUG_EDGE": "#d9633c", "GOOD": "#5fd1c0"},
+]
+
+
+def set_theme(index: int) -> None:
+    """Mutate the module palette to a per-medication theme (by index)."""
+    global BG, DRUG, DRUG_EDGE, GOOD, PARTICLE, PARTICLE_EDGE
+    t = THEMES[index % len(THEMES)]
+    BG = t["BG"]
+    DRUG = t["DRUG"]
+    DRUG_EDGE = t["DRUG_EDGE"]
+    GOOD = t["GOOD"]

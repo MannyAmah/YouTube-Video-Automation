@@ -41,12 +41,13 @@ def probe_duration(path: str) -> float:
 
 
 def render_scene(scene: dict, out_path: str, fps: int, width: int, height: int,
-                 mol_dir: str) -> bool:
+                 mol_dir: str, theme: int = 0) -> bool:
     spec = {
         "type": scene.get("type", "concept_card"),
         "params": scene.get("params", {}),
         "target_seconds": float(scene.get("target_seconds", 6.0)),
         "mol_dir": mol_dir,
+        "theme": theme,
     }
     workdir = tempfile.mkdtemp(prefix="yva_scene_")
     spec_path = os.path.join(workdir, "spec.json")
@@ -106,13 +107,14 @@ def main():
     width = int(plan.get("width", 1920))
     height = int(plan.get("height", 1080))
     mol_dir = plan.get("mol_dir", out_dir)
+    theme = int(plan.get("theme", 0))
     os.makedirs(mol_dir, exist_ok=True)
 
     manifest = {"scenes": [], "ok": True}
     for i, scene in enumerate(plan.get("scenes", [])):
         sid = scene.get("id", f"scene_{i+1}")
         out_path = os.path.join(out_dir, f"{sid}.mp4")
-        ok = render_scene(scene, out_path, fps, width, height, mol_dir)
+        ok = render_scene(scene, out_path, fps, width, height, mol_dir, theme)
         if not ok:
             # Retry once as a plain concept card.
             fallback = {
@@ -123,7 +125,7 @@ def main():
                            or "Key point"},
                 "target_seconds": scene.get("target_seconds", 6.0),
             }
-            ok = render_scene(fallback, out_path, fps, width, height, mol_dir)
+            ok = render_scene(fallback, out_path, fps, width, height, mol_dir, theme)
         dur = probe_duration(out_path) if ok else 0.0
         manifest["scenes"].append({"id": sid, "file": f"{sid}.mp4",
                                    "ok": ok, "duration": dur,

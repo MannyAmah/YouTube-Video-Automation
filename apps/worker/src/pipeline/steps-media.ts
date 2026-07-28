@@ -120,9 +120,17 @@ async function narrationDuration(ctx: StepContext, runId: string, index: number)
 
 const TAIL_PAD = 0.6; // seconds of hold after narration in each scene
 
+/** Deterministic per-medication theme index (stable, well-spread). */
+function themeForMedication(name: string): number {
+  let h = 0;
+  for (const ch of name.toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return h % 8;
+}
+
 export async function stepRender(ctx: StepContext, runId: string, epoch: number): Promise<void> {
-  await getRunChecked(ctx.prisma, runId);
+  const run = await getRunChecked(ctx.prisma, runId);
   const plan = await loadAnimationPlan(ctx, runId);
+  const theme = themeForMedication(run.brief.medicationQuery);
 
   const runDir = await ctx.store.ensureRunDir(runId);
   const animDir = join(runDir, 'anim');
@@ -143,7 +151,7 @@ export async function stepRender(ctx: StepContext, runId: string, epoch: number)
     });
   }
 
-  const manifest = await renderAnimationScenes(ctx.env, animScenes, animDir, molDir);
+  const manifest = await renderAnimationScenes(ctx.env, animScenes, animDir, molDir, 30, theme);
   if (!manifest.ok) {
     const failed = manifest.scenes.filter((s) => !s.ok).map((s) => s.id);
     // A scene may have rendered as a fallback card and still be ok; only a

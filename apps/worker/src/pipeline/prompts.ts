@@ -121,6 +121,13 @@ naming it — but never omit the real names.
 Also include sections for what it treats, how it's taken safely, common and
 serious side effects, and key interactions.
 
+VARIETY — every medication is different, so this script must NOT sound like a
+template. Do NOT reuse stock metaphors like "sugar factory", "team effort",
+"like a recipe", "like a key and lock" unless they're truly the best fit.
+Choose fresh metaphors drawn from THIS drug's real biology and the disease it
+treats. Vary your sentence structure, section headings, and the hook so two
+different medications' videos never feel interchangeable.
+
 CITATIONS — claim.sourceIds must be chosen ONLY from this exact list of ids
 (copy them verbatim, including the "label_" prefix):
 ${validIds.map((id) => `  - ${id}`).join('\n')}
