@@ -131,3 +131,18 @@ describe('reviewQc', () => {
     expect(reviewQc({ ...goodQc, videoDurationSec: 60 }, 420).ok).toBe(false);
   });
 });
+
+describe('chunkScript', () => {
+  it('covers the entire script narration across scenes (no dropped words)', async () => {
+    const { chunkScript } = await import('../src/schemas');
+    const script = makeScript();
+    const chunks = chunkScript(script, 40);
+    const chunkWords = chunks.map((c: { narration: string }) => c.narration).join(' ').split(/\s+/).filter(Boolean).length;
+    const scriptWords = [script.hook, ...script.sections.map((s) => s.narration), script.outro, script.disclaimer]
+      .join(' ').split(/\s+/).filter(Boolean).length;
+    // Every word of hook + sections + outro + disclaimer is present.
+    expect(chunkWords).toBe(scriptWords);
+    expect(chunks[0].sectionId).toBe('hook');
+    expect(chunks[chunks.length - 1].sectionId).toBe('disclaimer');
+  });
+});

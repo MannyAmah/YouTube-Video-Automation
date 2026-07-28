@@ -202,7 +202,9 @@ fill its params. Every scene must actually SHOW the process, not just label it.
 - cell_uptake      params: {title?, cellLabel, substanceLabel}
       Cells pull a substance out of the blood (e.g. insulin sensitivity).
 - gauge            params: {title?, metricLabel, from: "high"|"normal"|"low", to: "high"|"normal"|"low"}
-      A meter moving between states (blood pressure, blood sugar, cholesterol...).
+      A meter moving between states — ONLY for a real measurable body metric
+      (blood pressure, blood sugar, cholesterol, heart rate). Never for
+      "dosage" or non-measurable ideas.
 - journey          params: {title?, steps: ["pill","stomach","bloodstream","target",...]}
       Pharmacokinetics: the drug's path through the body.
 - warning_vignette params: {title?, items: ["headache","nausea",...]}
@@ -228,6 +230,56 @@ mechanism, interactions, or how-to-take (use the specific primitive):
   what it does not mix with -> drug_interactions
   how to take it -> how_to_take
   side effects -> warning_vignette`;
+
+export const VISUAL_CHOICES_SCHEMA_DESCRIPTION = `VisualChoices JSON:
+{
+  "choices": [
+    { "primitive": "<one primitive name>", "params": { ...fields... }, "caption": "<optional <=80 chars>" }
+  ],
+  "thumbnailPrompt": "<prompt for a bold, friendly thumbnail illustration>",
+  "thumbnailTitleText": "<max 40 chars>"
+}
+The "choices" array MUST have EXACTLY one entry per numbered scene below, in
+order. Do not add, drop, or reorder. You choose only the visual — the
+narration is fixed.`;
+
+export function buildVisualChoicesPrompt(
+  chunks: { id: string; sectionId: string; narration: string }[],
+  script: Script,
+  medicationName: string,
+): { system: string; user: string } {
+  const system = `${CHANNEL_VOICE}
+
+You are the visual director for a PROGRAMMATIC ANIMATION engine (3Blue1Brown
+for medicine). The narration is ALREADY split into ${chunks.length} scenes. For
+EACH scene, in order, choose the animation primitive that literally simulates
+what that scene's narration says, and fill its params. You do NOT write or
+change narration — you only pick the visual.
+
+Rules:
+- Return EXACTLY ${chunks.length} choices, one per numbered scene, in order.
+- Pick the MOST SPECIFIC primitive for what the narration describes. Use
+  concept_card ONLY when nothing else fits (aim for very few — ideally none
+  outside the disclaimer). Even a general sentence about what the drug does
+  can usually be a bloodstream_level, organ_action, gauge, or two_panel_compare.
+- When the narration names a molecular target (receptor, enzyme, ion
+  channel, transporter, signaling protein), use receptor_binding /
+  enzyme_inhibition / channel_transporter / pathway_switch and put the REAL
+  target name from the narration into the params.
+- The params' visible labels must match what the narration says, so the
+  picture agrees with the spoken words.
+- First scene: title_card. Put a molecule_intro (name "${medicationName}")
+  on the earliest scene that introduces the drug. Last scene: outro_card.
+  The disclaimer scene: concept_card.
+
+${ANIMATION_PRIMITIVE_CATALOG}`;
+
+  const numbered = chunks
+    .map((c, i) => `Scene ${i + 1} [section: ${c.sectionId}]: ${c.narration}`)
+    .join('\n');
+  const user = `Choose one visual per scene for "${medicationName}". Return ${chunks.length} choices in order.\n\n${numbered}`;
+  return { system, user };
+}
 
 export function buildAnimationPlanPrompt(
   script: Script,
