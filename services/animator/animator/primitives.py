@@ -42,6 +42,220 @@ def _title(scene, text):
 
 
 # --------------------------------------------------------------------------- #
+def _mol_image(name, mol_dir, height=2.0):
+    """Render a real molecular structure to an ImageMobject, or None."""
+    if not name:
+        return None
+    safe = str(name).lower().replace(' ', '_').replace('/', '_')
+    png = os.path.join(mol_dir, f"mol_{safe}.png")
+    try:
+        if os.path.exists(png) or render_molecule(str(name), png):
+            img = ImageMobject(png)
+            img.height = height
+            return img
+    except Exception:
+        return None
+    return None
+
+
+def _protein(label_type="enzyme", color=None, edge=None, width=2.6):
+    """A realistic multi-lobe protein blob with an active-site cleft."""
+    from manim import Ellipse
+    col = color or "#6a5a8a"
+    ec = edge or "#463a63"
+    lobes = VGroup(
+        Ellipse(width=width, height=width * 0.8),
+        Ellipse(width=width * 0.7, height=width * 0.7).shift(RIGHT * width * 0.28 + UP * width * 0.18),
+        Ellipse(width=width * 0.65, height=width * 0.6).shift(RIGHT * width * 0.26 + DOWN * width * 0.2),
+    )
+    for l in lobes:
+        l.set_fill(col, opacity=1).set_stroke(ec, width=3)
+    # Active-site cleft on the right face.
+    cleft = Circle(radius=width * 0.16).set_fill(P.BG, opacity=1).set_stroke(ec, width=2)
+    cleft.move_to(RIGHT * width * 0.42)
+    grp = VGroup(lobes, cleft)
+    grp.cleft = cleft  # type: ignore[attr-defined]
+    return grp
+
+
+# --------------------------------------------------------------------------- #
+def build_molecular_binding(scene, params, mol_dir):
+    """The drug's REAL structure docking into a named target's active site."""
+    title = _title(scene, _txt(params, "title", default="Where the drug binds"))
+    drug_name = _txt(params, "drugName", "drugLabel", "name", default="the drug")
+    target = _txt(params, "targetLabel", "target", "receptorLabel", "enzymeLabel", default="its target")
+    ttype = _txt(params, "targetType", default="enzyme").lower()
+    effect = _txt(params, "effect", default="inhibits").lower()
+
+    tcol = {"enzyme": ("#6a5a8a", "#463a63"), "receptor": ("#3a5a4a", "#294436"),
+            "channel": ("#4a6a8a", "#35506a"), "transporter": ("#8a6552", "#63483a")}.get(
+        ttype, ("#6a5a8a", "#463a63"))
+    protein = _protein(ttype, tcol[0], tcol[1], width=3.0).shift(RIGHT * 2.6)
+    t_lbl = H.label(target, color=P.INK, scale=0.46, weight="BOLD").next_to(protein, DOWN, buff=0.3)
+    ttag = H.label(ttype, color=P.MUTE, scale=0.32).next_to(t_lbl, DOWN, buff=0.1)
+    scene.play(FadeIn(protein), FadeIn(t_lbl), FadeIn(ttag), run_time=0.9)
+
+    drug = _mol_image(drug_name, mol_dir, height=1.7) or H.molecule_glyph()
+    drug.move_to(LEFT * 4 + UP * 0.4)
+    d_lbl = H.label(drug_name, color=P.DRUG, scale=0.44, weight="BOLD").next_to(drug, DOWN, buff=0.2)
+    if isinstance(drug, ImageMobject):
+        scene.play(FadeIn(drug), FadeIn(d_lbl), run_time=0.7)
+    else:
+        scene.play(GrowFromCenter(drug), FadeIn(d_lbl), run_time=0.7)
+
+    # Drug travels to the active-site cleft and docks.
+    cleft_pt = protein.cleft.get_center()  # type: ignore[attr-defined]
+    scene.play(
+        drug.animate.scale(0.6).move_to(cleft_pt),
+        d_lbl.animate.next_to(cleft_pt, UP, buff=1.6).set_opacity(0),
+        run_time=1.3, rate_func=rate_functions.ease_in_out_sine,
+    )
+    col = P.GOOD if effect in ("activates", "opens") else P.WARN
+    scene.play(protein.cleft.animate.set_fill(col, opacity=0.8),  # type: ignore[attr-defined]
+               Flash(cleft_pt, color=col, num_lines=16, flash_radius=1.0), run_time=0.9)
+    verb = {"inhibits": "inhibited", "blocks": "blocked", "activates": "activated",
+            "opens": "opened"}.get(effect, "affected")
+    res = H.label(f"{target} {verb}", color=col, scale=0.5, weight="BOLD").to_edge(DOWN, buff=0.5)
+    scene.play(Write(res), run_time=0.7)
+
+
+def build_enzyme_reaction(scene, params, mol_dir):
+    """Real substrate -> enzyme -> real product, with optional drug inhibition."""
+    title = _title(scene, _txt(params, "title", default="The reaction"))
+    enzyme = _txt(params, "enzymeLabel", "enzyme", default="enzyme")
+    sub_name = _txt(params, "substrateName", "substrateLabel", "substrate", default="")
+    prod_name = _txt(params, "productName", "productLabel", "product", default="")
+    drug_name = _txt(params, "drugName", "drugLabel", default="")
+    inhibited = bool(params.get("inhibited", bool(drug_name)))
+
+    enz = _protein("enzyme", "#6a5a8a", "#463a63", width=2.4)
+    enz_lbl = H.label(enzyme, color=P.INK, scale=0.42, weight="BOLD").next_to(enz, DOWN, buff=0.25)
+    scene.play(FadeIn(enz), FadeIn(enz_lbl), run_time=0.7)
+
+    sub = _mol_image(sub_name, mol_dir, height=1.3) or H.particle(P.GLUCOSE, P.GLUCOSE_EDGE, 0.28)
+    sub.move_to(LEFT * 4.2)
+    sub_lbl = H.label(sub_name or "substrate", color=P.MUTE, scale=0.34).next_to(sub, DOWN, buff=0.15)
+    prod = _mol_image(prod_name, mol_dir, height=1.3) or H.particle(P.GOOD, "#3fa06a", 0.28)
+    prod.move_to(RIGHT * 4.2)
+    prod_lbl = H.label(prod_name or "product", color=P.MUTE, scale=0.34).next_to(prod, DOWN, buff=0.15)
+    a1 = Arrow(LEFT * 3.0, LEFT * 1.3, color=P.MUTE, buff=0.1, stroke_width=4)
+    a2 = Arrow(RIGHT * 1.3, RIGHT * 3.0, color=P.MUTE, buff=0.1, stroke_width=4)
+    if isinstance(sub, ImageMobject):
+        scene.play(FadeIn(sub), FadeIn(sub_lbl), FadeIn(prod), FadeIn(prod_lbl),
+                   GrowArrow(a1), GrowArrow(a2), run_time=0.9)
+    else:
+        scene.play(FadeIn(sub), FadeIn(sub_lbl), FadeIn(prod), FadeIn(prod_lbl),
+                   GrowArrow(a1), GrowArrow(a2), run_time=0.9)
+
+    if inhibited and drug_name:
+        drug = _mol_image(drug_name, mol_dir, height=1.1) or H.molecule_glyph()
+        drug.move_to(UP * 2.0 + RIGHT * 2.0)
+        d_lbl = H.label(drug_name, color=P.DRUG, scale=0.4, weight="BOLD").next_to(drug, RIGHT, buff=0.2)
+        scene.play(FadeIn(drug), FadeIn(d_lbl), run_time=0.6)
+        scene.play(drug.animate.scale(0.7).move_to(enz.cleft.get_center()),  # type: ignore[attr-defined]
+                   d_lbl.animate.set_opacity(0), run_time=1.0)
+        scene.play(enz.cleft.animate.set_fill(P.WARN, opacity=0.8),  # type: ignore[attr-defined]
+                   a2.animate.set_opacity(0.15), prod.animate.set_opacity(0.2),
+                   prod_lbl.animate.set_opacity(0.2),
+                   Flash(enz.get_center(), color=P.WARN, flash_radius=1.1), run_time=0.9)
+        res = H.label(f"{enzyme} blocked — less {prod_name or 'product'}",
+                      color=P.GOOD, scale=0.46, weight="BOLD").to_edge(DOWN, buff=0.5)
+        scene.play(Write(res), run_time=0.7)
+    else:
+        # Substrate flows through the enzyme and becomes product.
+        flow = sub.copy()
+        scene.add(flow)
+        scene.play(flow.animate.move_to(enz.get_center()).scale(0.5), run_time=0.9)
+        scene.play(flow.animate.move_to(prod.get_center()).set_opacity(0), run_time=0.9)
+        res = H.label(f"{enzyme} converts {sub_name or 'substrate'} → {prod_name or 'product'}",
+                      color=P.GOOD, scale=0.42, weight="BOLD").to_edge(DOWN, buff=0.5)
+        scene.play(Write(res), run_time=0.7)
+
+
+def build_signaling_cascade(scene, params, mol_dir):
+    """A real signaling cascade: named molecular players activate in sequence."""
+    title = _title(scene, _txt(params, "title", default="The signaling cascade"))
+    nodes = params.get("nodes") or params.get("steps")
+    if not isinstance(nodes, list) or not nodes:
+        nodes = [_txt(params, "note", default="signal")]
+    # Each node may be a string or {label, moleculeName}.
+    norm = []
+    for nd in nodes[:5]:
+        if isinstance(nd, dict):
+            norm.append((str(nd.get("label") or nd.get("name") or "step"),
+                         nd.get("moleculeName") or nd.get("molecule")))
+        else:
+            norm.append((str(nd), None))
+    n = len(norm)
+    xs = np.linspace(-5.2, 5.2, n)
+    mobs, labels = [], VGroup()
+    for x, (label, mol_name) in zip(xs, norm):
+        img = _mol_image(mol_name, mol_dir, height=1.0) if mol_name else None
+        if img is not None:
+            img.move_to([x, 0.4, 0])
+            node = img
+        else:
+            node = Circle(radius=0.5).set_fill(P.PANEL, opacity=1).set_stroke(P.MUTE, width=3)\
+                .move_to([x, 0.4, 0])
+        lbl = H.label(label, color=P.INK, scale=0.32, weight="BOLD")
+        if lbl.width > 2.0:
+            lbl.scale(2.0 / lbl.width)
+        lbl.next_to([x, -0.6, 0], DOWN, buff=0.05)
+        mobs.append(node); labels.add(lbl)
+    scene.play(*[FadeIn(m) if isinstance(m, ImageMobject) else GrowFromCenter(m) for m in mobs][:1], run_time=0.4)
+    scene.play(LaggedStart(*[(FadeIn(m) if isinstance(m, ImageMobject) else GrowFromCenter(m)) for m in mobs],
+                           lag_ratio=0.15), LaggedStart(*[FadeIn(l) for l in labels], lag_ratio=0.15),
+               run_time=1.2)
+    arrows = VGroup(*[Arrow([xs[i], 0.4, 0], [xs[i + 1], 0.4, 0], color=P.MUTE, buff=0.6,
+                            stroke_width=4) for i in range(n - 1)])
+    # Activation propagates along the chain.
+    pulse = Circle(radius=0.6).set_stroke(P.GOOD, width=4).set_fill(opacity=0)\
+        .move_to(mobs[0].get_center())
+    scene.add(pulse)
+    for i in range(n):
+        anims = [pulse.animate.move_to(mobs[i].get_center())]
+        if i < n - 1:
+            anims.append(GrowArrow(arrows[i]))
+        scene.play(*anims, Flash(mobs[i].get_center(), color=P.GOOD, flash_radius=0.7),
+                   run_time=0.6)
+    scene.play(FadeOut(pulse), run_time=0.3)
+    eff = _txt(params, "effect", "result")
+    if eff:
+        res = H.label(eff, color=P.GOOD, scale=0.44, weight="BOLD").to_edge(DOWN, buff=0.5)
+        scene.play(Write(res), run_time=0.6)
+
+
+def build_side_effect_mechanism(scene, params, mol_dir):
+    """WHY a side effect happens: the real biological causal chain."""
+    title = _title(scene, _txt(params, "title", default="Why this side effect happens"))
+    effect = _txt(params, "effectLabel", "effect", "sideEffect", default="a side effect")
+    steps = params.get("causeSteps") or params.get("steps") or params.get("chain")
+    if not isinstance(steps, list) or not steps:
+        steps = [_txt(params, "note", default="the drug's action"), f"leads to {effect}"]
+    steps = [str(s) for s in steps][:4]
+    boxes = VGroup()
+    for i, s in enumerate(steps):
+        box = RoundedRectangle(width=3.4, height=1.1, corner_radius=0.15)\
+            .set_fill(P.PANEL if i < len(steps) - 1 else "#3a2630", opacity=1)\
+            .set_stroke("#f0c36b" if i < len(steps) - 1 else P.WARN, width=3)
+        txt = H.label(s, color=P.INK, scale=0.34)
+        if txt.width > box.width - 0.3:
+            txt.scale((box.width - 0.3) / txt.width)
+        txt.move_to(box)
+        boxes.add(VGroup(box, txt))
+    boxes.arrange(DOWN, buff=0.55)
+    if boxes.height > 6.2:
+        boxes.scale(6.2 / boxes.height)
+    boxes.move_to(DOWN * 0.2)
+    arrows = VGroup(*[Arrow(boxes[i].get_bottom(), boxes[i + 1].get_top(), color=P.WARN,
+                            buff=0.08, stroke_width=4) for i in range(len(steps) - 1)])
+    scene.play(FadeIn(boxes[0], shift=DOWN * 0.2), run_time=0.6)
+    for i in range(1, len(steps)):
+        scene.play(GrowArrow(arrows[i - 1]), FadeIn(boxes[i], shift=DOWN * 0.2), run_time=0.6)
+    final = H.label(effect, color=P.WARN, scale=0.46, weight="BOLD").to_edge(DOWN, buff=0.5)
+    scene.play(FadeIn(final), run_time=0.5)
+
+
 def build_title_card(scene, params, mol_dir):
     title = _txt(params, "title", default="How This Medication Works")
     subtitle = _txt(params, "subtitle", default="explained simply")
@@ -527,6 +741,10 @@ REGISTRY = {
     "two_panel_compare": build_two_panel_compare,
     "drug_interactions": build_drug_interactions,
     "how_to_take": build_how_to_take,
+    "molecular_binding": build_molecular_binding,
+    "enzyme_reaction": build_enzyme_reaction,
+    "signaling_cascade": build_signaling_cascade,
+    "side_effect_mechanism": build_side_effect_mechanism,
     "concept_card": build_concept_card,
     "outro_card": build_outro_card,
 }

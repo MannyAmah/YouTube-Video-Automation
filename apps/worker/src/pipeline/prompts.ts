@@ -53,25 +53,29 @@ export function buildScriptPrompt(
 ): { system: string; user: string } {
   const system = `${CHANNEL_VOICE}
 
-DEPTH — go deeper than a surface overview. For the mechanism especially:
-- Name the REAL molecular targets when the evidence gives them: the actual
-  receptor, enzyme, ion channel, transporter, or signaling protein the drug
-  acts on (e.g. "HMG-CoA reductase", "ACE", "beta-1 receptors", "AMPK",
-  "L-type calcium channels", "the proton pump"). Say the real name, THEN
-  explain it with a five-year-old metaphor — never skip the real name.
-- Explain the chain of events: drug -> target -> what changes in the cell ->
-  what changes in the organ -> what changes for the patient.
-- Include a dedicated deeper look at the mechanism, and cover how it's taken
-  safely and its key interactions, each with real detail from the evidence.
+DEPTH — this is a REAL molecular-biology channel. Go deep on the mechanism:
+- Name the REAL molecular target(s): the actual receptor, enzyme, ion channel,
+  transporter, or signalling protein the drug binds (e.g. "HMG-CoA reductase",
+  "ACE", "beta-1 receptor", "mitochondrial Complex I", "AMPK", "L-type calcium
+  channel", "the H+/K+ ATPase proton pump"). Say the real name, then explain it
+  with a five-year-old metaphor — never skip the real name.
+- Tell the physical story: what the drug molecule IS, WHERE on the target it
+  binds, WHEN/what happens on binding, the downstream biochemical cascade
+  (name the real molecules — ATP, AMP, cAMP, substrate, product), WHY that
+  produces the therapeutic effect, and HOW the key side/adverse effects arise
+  biologically and why.
+- Dedicate multiple sections to this molecular mechanism. Also cover how it's
+  taken safely and its key interactions.
 
-FACTUAL DISCIPLINE — non-negotiable:
-- The FDA/NIH evidence bundle is the ONLY permitted source of facts. Do not
-  use outside knowledge for any factual claim.
-- Every factual statement (what it treats, how it works, the named targets,
-  side effects, interactions, manufacturers, statistics) must appear in
-  "claims" with the sourceIds that support it. Use ONLY ids in the bundle.
-- If the evidence names a molecular target, USE it. If the evidence does not
-  support something, leave it out. Never invent numbers.`;
+FACTUAL DISCIPLINE:
+- For the MECHANISM of action at the molecular level (target names, binding,
+  downstream molecules/cascade, why side effects arise) you MAY use established
+  pharmacology — cite the "pharmacology" source id for these.
+- For everything else — what it treats, efficacy, dosing, warnings, side-effect
+  frequencies, interactions, manufacturers, and ANY statistic — use ONLY the
+  FDA/NIH label evidence and cite those source ids. Never invent numbers.
+- Every factual statement must appear in "claims" with the sourceIds that
+  support it, using ONLY ids in the bundle.`;
 
   const angleInstruction: Record<string, string> = {
     complete_guide:
@@ -90,14 +94,32 @@ FACTUAL DISCIPLINE — non-negotiable:
 Medication: ${evidence.genericName}
 Angle: ${brief.angle} — ${angleInstruction[brief.angle] ?? angleInstruction.complete_guide}
 
-LENGTH — the single most common failure. The narration (hook + every section
-narration + outro) MUST total AT LEAST ${minWords} words. Count as you write.
-Produce 8-11 sections, each 130-190 narration words. Include distinct
-sections for: what it treats, the DEEP mechanism (named target -> cell ->
-organ -> patient), how it's taken safely, common and serious side effects,
-and key interactions. For every fact: name it precisely, give a metaphor a
-five-year-old would picture, add one everyday example, then say what it means
-for the viewer. Do not be terse.
+LENGTH — the narration (hook + every section + outro) MUST total AT LEAST
+${minWords} words. Produce 8-11 sections, each 130-190 narration words.
+
+MECHANISM — this is the heart of the video and MUST be molecular, not vague.
+Do NOT stop at "the liver makes less sugar." Dedicate 3-4 consecutive sections
+to the real molecular story, and in them you MUST:
+  (1) Name the drug's REAL molecular TARGET — the specific enzyme, receptor,
+      ion channel, transporter, or protein it binds (cite "pharmacology").
+  (2) Describe WHERE on/in the cell it binds and WHAT physically happens when
+      it binds (the binding event and the immediate change).
+  (3) Name the REAL downstream MOLECULES in the cascade (e.g. ATP, AMP, cAMP,
+      a substrate and its product) and how they change.
+  (4) Connect that cascade to WHY the therapeutic effect happens.
+  (5) For at least one important side effect, explain the real biological
+      REASON it develops.
+Worked example of the required depth (different drug — do the equivalent for
+this one): "Atorvastatin blocks an enzyme in the liver called HMG-CoA
+reductase. That enzyme normally turns HMG-CoA into mevalonate, the first
+building block of cholesterol. With the enzyme blocked, less mevalonate is
+made, so the liver makes less cholesterol and pulls more LDL out of the blood."
+Name the equivalent real target, substrate/product or second messengers, and
+cascade for THIS medication. Still explain each with a simple metaphor after
+naming it — but never omit the real names.
+
+Also include sections for what it treats, how it's taken safely, common and
+serious side effects, and key interactions.
 
 CITATIONS — claim.sourceIds must be chosen ONLY from this exact list of ids
 (copy them verbatim, including the "label_" prefix):
@@ -211,6 +233,24 @@ fill its params. Every scene must actually SHOW the process, not just label it.
       Side effects as friendly signposts.
 - two_panel_compare params: {title?, leftTitle, rightTitle, leftNote?, rightNote?}
       Before/after or with/without comparison.
+- molecular_binding params: {title?, drugName, targetLabel, targetType: "enzyme"|"receptor"|"channel"|"transporter", effect: "inhibits"|"blocks"|"activates"|"opens"}
+      THE KEY MECHANISM SCENE. Renders the drug's REAL molecular structure
+      docking into the named target's active site. Use the REAL target from
+      the evidence (e.g. "HMG-CoA reductase", "ACE", "mitochondrial Complex I",
+      "beta-1 receptor", "the proton pump", "L-type calcium channel"). Use this
+      to show WHERE and WHEN the drug binds and WHAT happens.
+- enzyme_reaction  params: {title?, enzymeLabel, substrateName, productName, drugName?, inhibited?: true|false}
+      Renders REAL substrate and product molecular structures either side of
+      the named enzyme; if the drug inhibits it, the drug docks and the product
+      stops. Use REAL molecule names so the true structures are drawn
+      (substrate/product/drug). Great for "why it works".
+- signaling_cascade params: {title?, nodes: [{label, moleculeName?}, ...], effect?}
+      A real cascade of named molecular players activating in sequence
+      (e.g. ATP -> AMP -> AMPK -> less glucose). Give moleculeName for players
+      that are real molecules (ATP, AMP, cAMP, glucose, pyruvate...) so their
+      real structures are drawn.
+- side_effect_mechanism params: {title?, effectLabel, causeSteps: ["real cause","real consequence","the symptom"]}
+      Shows WHY an adverse effect develops as a real biological causal chain.
 - drug_interactions params: {title?, drugLabel, interactsWith: ["warfarin","alcohol","grapefruit",...], note?}
       Shows the drug and things it clashes with as puzzle pieces that don't fit.
 - how_to_take      params: {title?, timing: "once daily"|"twice daily"|"with meals"|..., withFood: true|false, tips: ["don't crush","same time each day",...]}
@@ -218,18 +258,23 @@ fill its params. Every scene must actually SHOW the process, not just label it.
 - concept_card     params: {headline, sublines?: [..]}   (LAST-RESORT fallback only)
 - outro_card       params: {line1, line2}
 
-Match the primitive to the biology — and NEVER use concept_card for the
-mechanism, interactions, or how-to-take (use the specific primitive):
-  drug activates/inhibits a named receptor -> receptor_binding
-  drug blocks a named enzyme -> enzyme_inhibition
-  a calcium/sodium/potassium channel -> channel_transporter
-  an intracellular signal (AMPK, etc.) -> pathway_switch
-  the drug's molecular target chain -> use receptor_binding OR enzyme_inhibition OR pathway_switch (name the REAL target from the script)
+Match the primitive to the biology. This is a REAL biological simulation
+channel — for anything about HOW the drug works at the molecular level,
+PREFER the real-molecule primitives that draw actual chemical structures:
+  where/when the drug binds + what happens -> molecular_binding (REAL target name)
+  a named enzyme turning a substrate into a product -> enzyme_reaction (REAL substrate/product/drug names)
+  an intracellular signalling chain -> signaling_cascade (REAL molecule names like ATP/AMP/cAMP)
+  WHY a side/adverse effect develops -> side_effect_mechanism (real causal chain)
+  drug activates/inhibits a named receptor -> receptor_binding OR molecular_binding
+  a calcium/sodium/potassium channel -> channel_transporter OR molecular_binding
   lowering a measurable number -> gauge
   an organ over/under-producing something -> organ_action
   what it does not mix with -> drug_interactions
   how to take it -> how_to_take
-  side effects -> warning_vignette`;
+  side effects (list) -> warning_vignette
+NEVER use concept_card for mechanism, binding, interactions, how-to-take, or
+side-effect causes. Always pass the REAL molecular names from the evidence so
+the true structures are drawn.`;
 
 export const VISUAL_CHOICES_SCHEMA_DESCRIPTION = `VisualChoices JSON:
 {
@@ -262,10 +307,14 @@ Rules:
   concept_card ONLY when nothing else fits (aim for very few — ideally none
   outside the disclaimer). Even a general sentence about what the drug does
   can usually be a bloodstream_level, organ_action, gauge, or two_panel_compare.
-- When the narration names a molecular target (receptor, enzyme, ion
-  channel, transporter, signaling protein), use receptor_binding /
-  enzyme_inhibition / channel_transporter / pathway_switch and put the REAL
-  target name from the narration into the params.
+- This is a REAL biological simulation channel. When the narration is about
+  how the drug works at the molecular level, PREFER the real-molecule
+  primitives that draw actual chemical structures: molecular_binding (where/
+  when it binds + what happens), enzyme_reaction (substrate->enzyme->product),
+  signaling_cascade (ATP/AMP/cAMP...), side_effect_mechanism (why an adverse
+  effect develops). Pass the REAL molecule and target NAMES from the narration
+  (drugName, targetLabel, substrateName, productName, moleculeName) so the true
+  structures are rendered.
 - The params' visible labels must match what the narration says, so the
   picture agrees with the spoken words.
 - First scene: title_card. Put a molecule_intro (name "${medicationName}")

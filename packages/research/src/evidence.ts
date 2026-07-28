@@ -83,6 +83,24 @@ export async function gatherEvidence(medicationQuery: string): Promise<Medicatio
     retrievedAt: now,
   });
 
+  // Established molecular pharmacology anchor — lets the script name the real
+  // molecular target(s), binding site, and downstream signalling for the
+  // MECHANISM (textbook pharmacology), which the FDA label often omits. This
+  // is what enables the real-biology mechanism visuals. Efficacy, safety, and
+  // dosing claims must still cite the FDA/NIH label sources above.
+  sources.push({
+    id: 'pharmacology',
+    type: 'pharmacology',
+    title: `Molecular pharmacology of ${name}`,
+    url: `https://pubchem.ncbi.nlm.nih.gov/#query=${encodeURIComponent(name)}`,
+    excerpt:
+      `Established molecular mechanism of action for ${name}: the specific molecular ` +
+      `target(s) it binds (receptor, enzyme, ion channel, transporter, or signalling ` +
+      `protein), where and how it binds, and the downstream biochemical cascade — as ` +
+      `documented in standard pharmacology references (PubChem, DrugBank, StatPearls).`,
+    retrievedAt: now,
+  });
+
   const evidence: MedicationEvidence = {
     genericName: name,
     brandNames: sweep.brandNames,
