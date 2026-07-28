@@ -87,6 +87,65 @@ def molecule_glyph(color=P.DRUG, edge=P.DRUG_EDGE):
     return VGroup(l1, l2, a, b, c)
 
 
+def lipid_bilayer(width=11.0, center=ORIGIN, gap=0.5):
+    """A phospholipid bilayer: two rows of round heads with inward tails."""
+    from manim import Line, Ellipse
+    grp = VGroup()
+    head_r = 0.13
+    n = int(width / (head_r * 2.2))
+    xs = np.linspace(-width / 2, width / 2, n)
+    top_y = center[1] + gap / 2
+    bot_y = center[1] - gap / 2
+    for x in xs:
+        for y, tail_dir in ((top_y, -1), (bot_y, 1)):
+            head = Ellipse(width=head_r * 2, height=head_r * 2.2)\
+                .set_fill("#d9a441", opacity=1).set_stroke("#a87a2a", width=1)\
+                .move_to([x + center[0], y, 0])
+            t1 = Line([x + center[0] - 0.05, y, 0],
+                      [x + center[0] - 0.05, y + tail_dir * 0.26, 0],
+                      color="#c9952f", stroke_width=2)
+            t2 = Line([x + center[0] + 0.05, y, 0],
+                      [x + center[0] + 0.05, y + tail_dir * 0.26, 0],
+                      color="#c9952f", stroke_width=2)
+            grp.add(head, t1, t2)
+    return grp
+
+
+def mitochondrion(width=1.1, center=ORIGIN):
+    """A small mitochondrion with cristae."""
+    from manim import Ellipse, VMobject
+    body = Ellipse(width=width, height=width * 0.55)\
+        .set_fill("#c98a5a", opacity=1).set_stroke("#8a5a34", width=3).move_to(center)
+    grp = VGroup(body)
+    # A few cristae as wavy inner lines.
+    for i, dx in enumerate(np.linspace(-width * 0.28, width * 0.28, 3)):
+        cr = VMobject().set_points_as_corners([
+            [center[0] + dx - 0.08, center[1] + width * 0.18, 0],
+            [center[0] + dx + 0.08, center[1], 0],
+            [center[0] + dx - 0.08, center[1] - width * 0.18, 0],
+        ]).set_stroke("#8a5a34", width=2)
+        grp.add(cr)
+    return grp
+
+
+def cell_backdrop(width=9.0, height=4.6, center=ORIGIN, with_nucleus=True,
+                  with_mito=True):
+    """A cell: membrane blob, cytoplasm, optional nucleus + mitochondria."""
+    from manim import Ellipse
+    cyto = Ellipse(width=width, height=height)\
+        .set_fill("#1b2c44", opacity=0.9).set_stroke("#3a6a8a", width=5).move_to(center)
+    grp = VGroup(cyto)
+    if with_nucleus:
+        nuc = Ellipse(width=width * 0.32, height=height * 0.5)\
+            .set_fill("#2a3f5f", opacity=1).set_stroke("#5b7fb0", width=3)\
+            .move_to(center + np.array([-width * 0.22, 0, 0]))
+        grp.add(nuc)
+    if with_mito:
+        grp.add(mitochondrion(1.1, center + np.array([width * 0.24, height * 0.22, 0])))
+        grp.add(mitochondrion(1.0, center + np.array([width * 0.30, -height * 0.20, 0])))
+    return grp
+
+
 def lerp_color(a, b, t):
     return interpolate_color_safe(a, b, t)
 

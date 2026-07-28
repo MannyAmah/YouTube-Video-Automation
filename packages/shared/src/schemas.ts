@@ -186,6 +186,71 @@ export const AnimationPlanSchema = z.object({
 });
 export type AnimationPlan = z.infer<typeof AnimationPlanSchema>;
 
+/**
+ * Fixed scene narration produced by deterministically chunking the script.
+ * The visual-direction model chooses a primitive + params for each of these
+ * (it does NOT control the narration), guaranteeing the video reproduces the
+ * full script word-for-word and that captions == spoken words == the scene.
+ */
+export interface SceneChunk {
+  id: string;
+  sectionId: string;
+  narration: string;
+}
+
+export const VisualChoiceSchema = z.object({
+  primitive: z.enum(ANIMATION_PRIMITIVES),
+  params: z.record(z.string(), z.any()).default({}),
+  caption: z.string().max(80).default(''),
+});
+export type VisualChoice = z.infer<typeof VisualChoiceSchema>;
+
+export const VisualChoicesSchema = z.object({
+  choices: z.array(VisualChoiceSchema),
+  thumbnailPrompt: z.string().min(1),
+  thumbnailTitleText: z.string().min(1).max(40),
+});
+export type VisualChoices = z.infer<typeof VisualChoicesSchema>;
+
+/**
+ * Split a script into scene-sized narration chunks covering 100% of the
+ * spoken text: the hook, each section (split on sentence boundaries into
+ * ~targetWords pieces), the outro, and the disclaimer.
+ */
+export function chunkScript(script: Script, targetWords = 70): SceneChunk[] {
+  const chunks: SceneChunk[] = [];
+  let n = 0;
+  const push = (sectionId: string, narration: string) => {
+    const text = narration.trim();
+    if (text) chunks.push({ id: `scene_${String(++n).padStart(3, '0')}`, sectionId, narration: text });
+  };
+
+  const splitByWords = (text: string): string[] => {
+    const sentences = text.replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s+/);
+    const out: string[] = [];
+    let cur = '';
+    for (const s of sentences) {
+      const candidate = cur ? `${cur} ${s}` : s;
+      if (candidate.split(/\s+/).length > targetWords && cur) {
+        out.push(cur);
+        cur = s;
+      } else {
+        cur = candidate;
+      }
+    }
+    if (cur) out.push(cur);
+    return out.length > 0 ? out : [text];
+  };
+
+  push('hook', script.hook);
+  for (const section of script.sections) {
+    for (const piece of splitByWords(section.narration)) push(section.id, piece);
+  }
+  push('outro', script.outro);
+  push('disclaimer', script.disclaimer);
+  return chunks;
+}
+
 /* ---------------------------------------------------------------------------
  * Quality-control report
  * ------------------------------------------------------------------------- */

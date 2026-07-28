@@ -146,27 +146,31 @@ def build_receptor_binding(scene, params, mol_dir):
     drug = _txt(params, "drugLabel", "drug", default="the drug")
     receptor = _txt(params, "receptorLabel", "receptor", default="receptor")
     effect = _txt(params, "effect", default="activates").lower()
-    # Receptor = a notched slot; drug = a matching key.
-    rec = RoundedRectangle(width=2.2, height=2.6, corner_radius=0.2)\
+    # A real cell-surface receptor embedded in a lipid bilayer membrane.
+    membrane = H.lipid_bilayer(width=12, center=UP * 0.2, gap=0.55)
+    scene.play(FadeIn(membrane), run_time=0.9)
+    # Receptor spans the membrane: a shaped protein with an outer binding pocket.
+    rec = RoundedRectangle(width=1.1, height=2.2, corner_radius=0.25)\
         .set_fill("#3a5a4a" if effect == "activates" else "#5a3a3a", opacity=1)\
-        .set_stroke(P.INK, width=3).shift(RIGHT * 2.2)
-    notch = Square(0.7).set_fill(P.BG, opacity=1).set_stroke(P.INK, width=2)\
-        .move_to(rec.get_left())
-    rec_lbl = H.label(receptor, color=P.INK, scale=0.44, weight="BOLD").next_to(rec, UP, buff=0.2)
-    scene.play(FadeIn(rec), FadeIn(notch), FadeIn(rec_lbl), run_time=0.8)
-    key = Square(0.66).set_fill(P.DRUG, opacity=1).set_stroke(P.DRUG_EDGE, width=3)\
-        .shift(LEFT * 4)
-    key_lbl = H.label(drug, color=P.DRUG, scale=0.44, weight="BOLD").next_to(key, UP, buff=0.2)
-    scene.play(FadeIn(key, shift=RIGHT * 0.4), FadeIn(key_lbl), run_time=0.7)
-    scene.play(key.animate.move_to(notch.get_center()),
-               key_lbl.animate.next_to(notch.get_center(), UP, buff=1.4).set_opacity(0),
-               run_time=1.2)
+        .set_stroke(P.INK, width=3).move_to(RIGHT * 2.2 + UP * 0.2)
+    pocket = Circle(radius=0.3).set_fill(P.BG, opacity=1).set_stroke(P.INK, width=2)\
+        .move_to(rec.get_top() + DOWN * 0.2)
+    rec_lbl = H.label(receptor, color=P.INK, scale=0.44, weight="BOLD").next_to(rec, DOWN, buff=1.4)
+    scene.play(FadeIn(rec), FadeIn(pocket), FadeIn(rec_lbl), run_time=0.8)
+    # Drug approaches from outside (above the membrane) and docks in the pocket.
+    key = Circle(radius=0.26).set_fill(P.DRUG, opacity=1).set_stroke(P.DRUG_EDGE, width=3)\
+        .move_to(UP * 3 + LEFT * 2)
+    key_lbl = H.label(drug, color=P.DRUG, scale=0.44, weight="BOLD").next_to(key, UP, buff=0.15)
+    scene.play(FadeIn(key), FadeIn(key_lbl), run_time=0.6)
+    scene.play(key.animate.move_to(pocket.get_center()),
+               key_lbl.animate.next_to(pocket.get_center(), UP, buff=1.2).set_opacity(0),
+               run_time=1.1)
     col = P.GOOD if effect == "activates" else P.WARN
     verb = "switched ON" if effect == "activates" else "blocked"
     scene.play(rec.animate.set_fill(col, opacity=0.9),
-               Flash(rec, color=col, num_lines=16, flash_radius=1.4), run_time=0.9)
+               Flash(rec, color=col, num_lines=16, flash_radius=1.2), run_time=0.9)
     res = H.label(f"{receptor} {verb}", color=col, scale=0.5, weight="BOLD")\
-        .next_to(rec, DOWN, buff=0.3)
+        .to_edge(DOWN, buff=2.0)
     scene.play(Write(res), run_time=0.7)
 
 
@@ -195,7 +199,7 @@ def build_enzyme_inhibition(scene, params, mol_dir):
                arrow2.animate.set_opacity(0.15), prod.animate.set_opacity(0.2),
                Flash(enz, color=P.WARN, num_lines=14, flash_radius=1.1), run_time=0.9)
     res = H.label(f"{enzyme} blocked — less {product}", color=P.GOOD, scale=0.46, weight="BOLD")\
-        .to_edge(DOWN, buff=0.8)
+        .to_edge(DOWN, buff=2.0)
     scene.play(Write(res), run_time=0.7)
 
 
@@ -204,14 +208,16 @@ def build_channel_transporter(scene, params, mol_dir):
     channel = _txt(params, "channelLabel", "channel", default="channel")
     ion = _txt(params, "ion", "substanceLabel", default="ions")
     action = _txt(params, "action", default="block").lower()
-    # A membrane with a channel; ions try to pass.
-    mem_top = Line(LEFT * 5, RIGHT * 5, color=P.BLOOD_EDGE, stroke_width=8).shift(UP * 0.4)
-    mem_bot = Line(LEFT * 5, RIGHT * 5, color=P.BLOOD_EDGE, stroke_width=8).shift(DOWN * 0.4)
-    gate_l = Line(UP * 0.4, DOWN * 0.4, color=P.INK, stroke_width=8).shift(LEFT * 0.5)
-    gate_r = Line(UP * 0.4, DOWN * 0.4, color=P.INK, stroke_width=8).shift(RIGHT * 0.5)
-    ch_lbl = H.label(channel, color=P.INK, scale=0.42, weight="BOLD").next_to(gate_r, UP, buff=0.6).shift(RIGHT)
-    scene.play(Create(mem_top), Create(mem_bot), Create(gate_l), Create(gate_r),
-               FadeIn(ch_lbl), run_time=1.0)
+    # A real lipid bilayer with a protein channel spanning it.
+    membrane = H.lipid_bilayer(width=12, center=ORIGIN, gap=0.9)
+    gate_l = RoundedRectangle(width=0.35, height=1.5, corner_radius=0.12)\
+        .set_fill("#4a6a8a", opacity=1).set_stroke(P.INK, width=2).shift(LEFT * 0.55)
+    gate_r = RoundedRectangle(width=0.35, height=1.5, corner_radius=0.12)\
+        .set_fill("#4a6a8a", opacity=1).set_stroke(P.INK, width=2).shift(RIGHT * 0.55)
+    ch_lbl = H.label(channel, color=P.INK, scale=0.42, weight="BOLD")\
+        .next_to(gate_r, UP, buff=0.7).shift(RIGHT)
+    scene.play(FadeIn(membrane), run_time=0.7)
+    scene.play(FadeIn(gate_l), FadeIn(gate_r), FadeIn(ch_lbl), run_time=0.7)
     ions = VGroup(*[H.particle(P.GLUCOSE, P.GLUCOSE_EDGE, 0.14).move_to(UP * 1.4 + LEFT * (2 - i))
                     for i in range(4)])
     scene.play(LaggedStart(*[FadeIn(x) for x in ions], lag_ratio=0.1), run_time=0.7)
@@ -222,12 +228,12 @@ def build_channel_transporter(scene, params, mol_dir):
         scene.play(*[x.animate.move_to(UP * 0.9 + RIGHT * np.random.default_rng(i).uniform(-1.5, 1.5))
                      for i, x in enumerate(ions)], run_time=1.0)
         res = H.label(f"{channel} blocked — {ion} can't pass", color=P.GOOD,
-                      scale=0.44, weight="BOLD").to_edge(DOWN, buff=0.8)
+                      scale=0.44, weight="BOLD").to_edge(DOWN, buff=2.0)
     else:
         scene.play(*[x.animate.move_to(DOWN * 1.4 + LEFT * (2 - i)) for i, x in enumerate(ions)],
                    run_time=1.2)
         res = H.label(f"{channel} open — {ion} flow through", color=P.GOOD,
-                      scale=0.44, weight="BOLD").to_edge(DOWN, buff=0.8)
+                      scale=0.44, weight="BOLD").to_edge(DOWN, buff=2.0)
     scene.play(Write(res), run_time=0.7)
 
 
@@ -238,18 +244,17 @@ def build_pathway_switch(scene, params, mol_dir):
     state = _txt(params, "state", default="on").lower()
     downstream = _txt(params, "downstreamLabel", default="sugar factory")
     effect = _txt(params, "downstreamEffect", default="down").lower()
-    panel = RoundedRectangle(width=8.5, height=3.6, corner_radius=0.3)\
-        .set_fill(P.PANEL, opacity=0.96).set_stroke(P.PANEL_EDGE, width=2)
+    cell = H.cell_backdrop(width=10.5, height=5.0, center=DOWN * 0.1)
     ptitle = H.label(_txt(params, "panelTitle", default="inside the cell"),
-                     color=P.MUTE, scale=0.36).next_to(panel.get_top(), DOWN, buff=0.2)
-    scene.play(FadeIn(panel), FadeIn(ptitle), run_time=0.7)
+                     color=P.MUTE, scale=0.36).next_to(cell, UP, buff=0.15)
+    scene.play(FadeIn(cell), FadeIn(ptitle), run_time=0.9)
     nd = Circle(radius=0.6).set_fill(P.WARN, opacity=1).set_stroke("#ffffff", width=2)\
-        .move_to(panel.get_center() + LEFT * 2.2)
+        .move_to(DOWN * 0.1 + LEFT * 1.4)
     nd_lbl = H.label(node, color=P.INK, scale=0.42, weight="BOLD").move_to(nd)
     nd_sub = H.label(node_sub, color=P.MUTE, scale=0.3).next_to(nd, DOWN, buff=0.2)
     scene.play(GrowFromCenter(nd), FadeIn(nd_lbl), FadeIn(nd_sub), run_time=0.7)
     fac = Square(1.1).set_fill(P.organ_color("liver")[0], opacity=1)\
-        .set_stroke(P.organ_color("liver")[1], width=3).move_to(panel.get_center() + RIGHT * 2.5)
+        .set_stroke(P.organ_color("liver")[1], width=3).move_to(DOWN * 0.1 + RIGHT * 2.6)
     fac_lbl = H.label(downstream, color=P.INK, scale=0.3)
     if fac_lbl.width > fac.width - 0.15:
         fac_lbl.scale((fac.width - 0.15) / fac_lbl.width)
@@ -287,8 +292,8 @@ def build_cell_uptake(scene, params, mol_dir):
                             + np.array([np.random.default_rng(i).uniform(-0.5, 0.5),
                                         np.random.default_rng(i + 5).uniform(-0.3, 0.3), 0])).scale(0.7)
                             for i, p in enumerate(movers)], lag_ratio=0.08), run_time=1.8)
-    res = H.label(f"{cell} takes in {substance}", color=P.GOOD, scale=0.46, weight="BOLD")\
-        .to_edge(DOWN, buff=0.6)
+    res = H.label(f"{substance} moves into the {cell}", color=P.GOOD, scale=0.46, weight="BOLD")\
+        .to_edge(DOWN, buff=2.0)
     scene.play(Write(res), run_time=0.7)
 
 
@@ -427,7 +432,7 @@ def build_drug_interactions(scene, params, mol_dir):
         scene.play(grp.animate.shift(RIGHT * 0.5), Flash(bump, color=P.WARN, flash_radius=0.6),
                    run_time=0.35)
     res = H.label("tell your doctor about these", color="#f0c36b", scale=0.42)\
-        .to_edge(DOWN, buff=0.7)
+        .to_edge(DOWN, buff=2.0)
     scene.play(FadeIn(res), run_time=0.5)
 
 
@@ -464,7 +469,7 @@ def build_how_to_take(scene, params, mol_dir):
         for g in grp:
             if g.width > 6:
                 g.scale(6 / g.width)
-        grp.arrange(DOWN, aligned_edge=LEFT, buff=0.22).to_edge(DOWN, buff=0.7)
+        grp.arrange(DOWN, aligned_edge=LEFT, buff=0.22).to_edge(DOWN, buff=2.0)
         scene.play(LaggedStart(*[FadeIn(x, shift=RIGHT * 0.2) for x in grp], lag_ratio=0.2),
                    run_time=1.0)
 

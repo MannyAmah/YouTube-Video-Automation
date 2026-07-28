@@ -182,14 +182,33 @@ export async function stepRender(ctx: StepContext, runId: string, epoch: number)
     clipDurations.push(info?.duration ?? narrationSecs[i]! + TAIL_PAD);
   }
 
-  // Concat with a uniform re-encode.
+  // Captions from the scene narrations + clip durations — generated BEFORE
+  // concat so we can burn them into the video (spoken words == on-screen
+  // words == the visual, all in sync).
+  const srt = buildSrt(
+    plan.scenes.map((s, i) => ({ narration: s.narration, durationSec: clipDurations[i]! })),
+  );
+  const srtRel = ctx.store.relativePath(runId, 'captions.srt');
+  const srtAbs = ctx.store.absolutePath(srtRel);
+  await writeFile(srtAbs, srt, 'utf8');
+  await ctx.store.record(runId, 'captions_srt', srtRel, 'application/x-subrip', 'captions', {
+    entries: srt.split('\n\n').length,
+  });
+
+  // Concat with a uniform re-encode, burning the synchronized captions in a
+  // legible boxed style along the bottom.
   const listPath = join(animDir, 'concat.txt');
   await writeFile(listPath, withAudio.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join('\n'), 'utf8');
   const videoRel = ctx.store.relativePath(runId, 'video.mp4');
+  const subFilter =
+    `subtitles=${ffescapeFilterPath(srtAbs)}:force_style='` +
+    'FontName=DejaVu Sans,Fontsize=17,Bold=1,PrimaryColour=&H00FFFFFF&,' +
+    "OutlineColour=&H00101726&,BorderStyle=3,Outline=2,Shadow=0,MarginV=40'";
   await runFfmpeg([
     '-f', 'concat',
     '-safe', '0',
     '-i', listPath,
+    '-vf', subFilter,
     '-c:v', 'libx264',
     '-preset', 'medium',
     '-crf', '20',
@@ -201,20 +220,17 @@ export async function stepRender(ctx: StepContext, runId: string, epoch: number)
   ]);
   await ctx.store.record(runId, 'video_mp4', videoRel, 'video/mp4', 'manim+ffmpeg', {
     sceneCount: plan.scenes.length,
-  });
-
-  // Captions from the scene narrations + clip durations.
-  const srt = buildSrt(
-    plan.scenes.map((s, i) => ({ narration: s.narration, durationSec: clipDurations[i]! })),
-  );
-  const srtRel = ctx.store.relativePath(runId, 'captions.srt');
-  await writeFile(ctx.store.absolutePath(srtRel), srt, 'utf8');
-  await ctx.store.record(runId, 'captions_srt', srtRel, 'application/x-subrip', 'captions', {
-    entries: srt.split('\n\n').length,
+    captionsBurned: true,
   });
 
   await runStateTransition(ctx.prisma, runId, 'RENDERING', 'QUALITY_CHECK');
   await enqueueStep(ctx.queue, runId, 'quality_check', epoch);
+}
+
+/** Escape a filesystem path for use inside an ffmpeg -vf filter argument. */
+function ffescapeFilterPath(p: string): string {
+  // ffmpeg filter parsing needs ':' and '\' escaped inside the option value.
+  return p.replace(/\\/g, '\\\\').replace(/:/g, '\\:').replace(/'/g, "\\'");
 }
 
 /** Merge the scene caption into params so on-screen text is available. */

@@ -9,6 +9,7 @@ import {
   MedicationEvidenceSchema,
   Script,
   ScriptSchema,
+  VisualChoicesSchema,
 } from '@yva/shared';
 import {
   ImageProvider,
@@ -124,6 +125,31 @@ function buildFakeScript(evidence: MedicationEvidence): Script {
   return ScriptSchema.parse(script);
 }
 
+/** Deterministic visual choices for test mode — one per scene chunk. */
+function buildFakeVisualChoices(sceneCount: number) {
+  const rotation = [
+    'bloodstream_level',
+    'organ_action',
+    'pathway_switch',
+    'cell_uptake',
+    'gauge',
+    'journey',
+    'warning_vignette',
+  ];
+  const choices = Array.from({ length: sceneCount }, (_v, i) => {
+    if (i === 0) return { primitive: 'title_card', params: { title: 'Test', subtitle: 'explained simply' }, caption: '' };
+    if (i === 1) return { primitive: 'molecule_intro', params: { name: 'metformin' }, caption: '' };
+    if (i === sceneCount - 1) return { primitive: 'outro_card', params: { line1: 'Education only —', line2: 'talk to your doctor.' }, caption: '' };
+    const prim = rotation[i % rotation.length]!;
+    return { primitive: prim, params: { title: 'Concept', substanceLabel: 'sugar', organ: 'liver' }, caption: '' };
+  });
+  return VisualChoicesSchema.parse({
+    choices,
+    thumbnailPrompt: 'Bold friendly medical illustration',
+    thumbnailTitleText: 'Test Video',
+  });
+}
+
 interface FakeScene {
   id: string;
   sectionId: string;
@@ -181,7 +207,10 @@ export class FakeTextProvider implements TextProvider {
     const scriptJson = extractMarked(req.user, SCRIPT_MARKER);
 
     let candidate: unknown;
-    if (req.schemaDescription.includes('AnimationPlan')) {
+    if (req.schemaDescription.includes('VisualChoices')) {
+      const sceneCount = (req.user.match(/Scene \d+ \[section/g) ?? []).length || 6;
+      candidate = buildFakeVisualChoices(sceneCount);
+    } else if (req.schemaDescription.includes('AnimationPlan')) {
       if (!scriptJson) throw new ProviderError(this.name, 'No <SCRIPT_JSON> in prompt', false);
       candidate = buildFakeAnimationPlan(ScriptSchema.parse(JSON.parse(scriptJson)));
     } else if (req.schemaDescription.includes('Script')) {

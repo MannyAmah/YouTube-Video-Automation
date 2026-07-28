@@ -3,24 +3,26 @@ import {
   AnimationPlan,
   AnimationPlanSchema,
   AnimationScene,
+  chunkScript,
   ContentBriefSchema,
   MAX_SCRIPT_REVISIONS,
   MedicationEvidence,
   MedicationEvidenceSchema,
-  planCoversScript,
   reviewScript,
   Script,
   ScriptSchema,
+  VisualChoices,
+  VisualChoicesSchema,
 } from '@yva/shared';
 import { getTextProvider } from '@yva/providers';
 import { gatherEvidence } from '@yva/research';
 import { readFile } from 'fs/promises';
 import type { StepContext } from './context';
 import {
-  ANIMATION_PLAN_SCHEMA_DESCRIPTION,
-  buildAnimationPlanPrompt,
   buildScriptPrompt,
+  buildVisualChoicesPrompt,
   SCRIPT_SCHEMA_DESCRIPTION,
+  VISUAL_CHOICES_SCHEMA_DESCRIPTION,
 } from './prompts';
 import { enqueueStep } from '../queues';
 
@@ -165,60 +167,67 @@ export async function stepStoryboard(ctx: StepContext, runId: string, epoch: num
   const run = await getRunChecked(ctx.prisma, runId);
   const { script, version } = await loadLatestScript(ctx, runId);
 
+  // 1. Deterministically split the script into scene-sized narration chunks.
+  //    This GUARANTEES the video reproduces the full script word-for-word
+  //    and that captions == spoken words == the scene (perfect alignment).
+  const chunks = chunkScript(script);
+
+  // 2. Ask the model ONLY to choose a visual primitive + params per chunk.
   const provider = getTextProvider(ctx.env);
-  const prompt = buildAnimationPlanPrompt(script, run.brief.medicationQuery);
+  const prompt = buildVisualChoicesPrompt(chunks, script, run.brief.medicationQuery);
+  const { data: choicesResult, usage } = await provider.generateStructured<VisualChoices>({
+    system: prompt.system,
+    user: prompt.user,
+    schema: VisualChoicesSchema,
+    schemaDescription: VISUAL_CHOICES_SCHEMA_DESCRIPTION,
+    maxOutputTokens: 12_000,
+  });
 
-  // Generate the plan, retrying if the model drops too much narration
-  // (which would make the video far shorter than the script).
-  let generated: AnimationPlan | null = null;
-  let usage = { inputTokens: 0, outputTokens: 0 };
-  let user = prompt.user;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const result = await provider.generateStructured<AnimationPlan>({
-      system: prompt.system,
-      user,
-      schema: AnimationPlanSchema,
-      schemaDescription: ANIMATION_PLAN_SCHEMA_DESCRIPTION,
-      maxOutputTokens: 14_000,
-    });
-    usage = result.usage;
-    const planWords = result.data.scenes
-      .map((s) => s.narration)
-      .join(' ')
-      .split(/\s+/)
-      .filter(Boolean).length;
-    const coverage = planCoversScript(planWords, script);
-    if (coverage.ok) {
-      generated = result.data;
-      break;
+  // 3. Zip fixed narration with model visual choices. If the model returned
+  //    the wrong count, pad/truncate defensively so we never crash.
+  const choices = choicesResult.choices;
+  const scenes: AnimationScene[] = chunks.map((chunk, i) => {
+    const choice = choices[i] ?? choices[choices.length - 1];
+    const isDisclaimer = chunk.sectionId === 'disclaimer';
+    const isFirst = i === 0;
+    const isLast = i === chunks.length - 1;
+    let primitive = (choice?.primitive ?? 'concept_card') as AnimationScene['primitive'];
+    let params = (choice?.params ?? {}) as Record<string, unknown>;
+    // Deterministic anchors: title opens, outro closes, disclaimer is a card.
+    if (isFirst && primitive !== 'title_card') {
+      primitive = 'title_card';
+      params = { title: script.title, subtitle: 'explained simply' };
     }
-    ctx.log.warn({ runId, failures: coverage.failures }, 'animation plan dropped narration; retrying');
-    generated = result.data; // keep last attempt as fallback
-    user = `${prompt.user}\n\nYour previous plan FAILED: ${coverage.failures.join(' ')}`;
-  }
-  if (!generated) throw new Error('Animation plan generation produced nothing');
-
-  // Deterministic guarantee: the spoken disclaimer always closes the video,
-  // regardless of model behaviour — a model omission can never drop it.
-  const scenes: AnimationScene[] = [...generated.scenes];
-  const disclaimerCovered = scenes.some((s) =>
-    s.narration.toLowerCase().includes('education') && s.narration.toLowerCase().includes('doctor'),
-  );
-  if (!disclaimerCovered) {
-    scenes.push({
-      id: 'scene_disclaimer',
-      sectionId: 'disclaimer',
-      narration: script.disclaimer,
-      primitive: 'concept_card',
-      params: {
+    if (isDisclaimer) {
+      primitive = 'concept_card';
+      params = {
         headline: 'This is education, not medical advice',
-        sublines: ['Always talk to your doctor or pharmacist', 'before changing any medication'],
-      },
-      caption: 'Education only — talk to your doctor',
-    });
-  }
+        sublines: ['Always talk to your doctor or pharmacist first'],
+      };
+    } else if (isLast && primitive === 'concept_card') {
+      primitive = 'outro_card';
+    }
+    return {
+      id: chunk.id,
+      sectionId: chunk.sectionId,
+      narration: chunk.narration,
+      primitive,
+      params,
+      caption: choice?.caption ?? '',
+    };
+  });
 
-  const plan = AnimationPlanSchema.parse({ ...generated, scenes });
+  const plan = AnimationPlanSchema.parse({
+    scenes,
+    thumbnailPrompt: choicesResult.thumbnailPrompt,
+    thumbnailTitleText: choicesResult.thumbnailTitleText,
+  });
+
+  const cardCount = scenes.filter((s) => s.primitive === 'concept_card').length;
+  ctx.log.info(
+    { runId, scenes: scenes.length, scriptWords: chunks.map((c) => c.narration).join(' ').split(/\s+/).length, concept_cards: cardCount },
+    'animation plan built (full coverage guaranteed)',
+  );
 
   await ctx.prisma.storyboard.upsert({
     where: { runId_version: { runId, version } },
