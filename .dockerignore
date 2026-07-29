@@ -1,0 +1,17 @@
+# Keep the Railway/Docker build context small. The Dockerfiles run a fresh
+# pnpm install and build, so none of these are needed in the context.
+node_modules
+**/node_modules
+media-store
+dump.rdb
+.git
+.nx
+dist
+**/dist
+legacy
+*.log
+.env
+.env.*
+!.env.example
+tmp
+**/.DS_Store
