@@ -46,7 +46,14 @@ export class SystemController {
       checks.redis = false;
     }
     const ok = Object.values(checks).every(Boolean);
-    return { ok, service: 'api', checks };
+    // Deployed commit (Railway injects RAILWAY_GIT_COMMIT_SHA) so a deploy can
+    // be verified from the outside without auth.
+    const commit =
+      process.env.RAILWAY_GIT_COMMIT_SHA ??
+      process.env.GIT_SHA ??
+      process.env.SOURCE_COMMIT ??
+      'unknown';
+    return { ok, service: 'api', checks, commit: commit.slice(0, 12) };
   }
 
   @Get('status')
