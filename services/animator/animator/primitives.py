@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 import numpy as np
 from manim import (
-    Scene, VGroup, Text, Circle, Square, RoundedRectangle, Arrow, Line,
+    Scene, VGroup, Group, Text, Circle, Square, RoundedRectangle, Arrow, Line,
     FadeIn, FadeOut, Create, Write, Transform, GrowFromCenter, GrowArrow,
     DrawBorderThenFill, LaggedStart, MoveAlongPath, CubicBezier, Flash,
     ValueTracker, always_redraw, ImageMobject, rate_functions,
@@ -42,6 +42,91 @@ def _title(scene, text):
 
 
 # --------------------------------------------------------------------------- #
+def build_cell_mechanism(scene, params, mol_dir):
+    """
+    THE centerpiece biological simulation: inside a detailed, living cell, the
+    drug enters, travels to its target at the correct location, the target
+    responds, and downstream molecules are produced/consumed with continuous
+    motion.
+    """
+    from .cell import Cell
+    title = _title(scene, _txt(params, "title", default="Inside the cell"))
+    drug_name = _txt(params, "drugName", "drugLabel", "name", default="the drug")
+    target = _txt(params, "targetLabel", "target", default="its target")
+    location = _txt(params, "targetLocation", "location", default="cytoplasm")
+    action = _txt(params, "action", default="inhibits").lower()
+    result = _txt(params, "resultLabel", "result", default="")
+
+    cell = Cell(width=11.4, height=6.4, center=DOWN * 0.2)
+    scene.play(FadeIn(cell.membrane), run_time=0.6)
+    if cell.nucleus is not None:
+        scene.play(FadeIn(cell.nucleus), FadeIn(cell.er), *[FadeIn(m) for m in cell.mitos],
+                   run_time=0.7)
+    # Ambient molecular life.
+    diffusers = cell.diffusers(n=16, seed=3)
+    scene.add(diffusers)
+
+    # The target marker at the correct location.
+    tpos = cell.location(location)
+    good = action in ("activates", "opens")
+    target_dot = Circle(radius=0.42).set_fill("#8a6ab0" if not good else "#3a7a5a", opacity=1)\
+        .set_stroke(P.INK, width=3).move_to(tpos)
+    tlbl = H.label(target, color=P.INK, scale=0.4, weight="BOLD").next_to(target_dot, UP, buff=0.2)
+    if tlbl.width > 4:
+        tlbl.scale(4 / tlbl.width)
+        tlbl.next_to(target_dot, UP, buff=0.2)
+    scene.play(GrowFromCenter(target_dot), FadeIn(tlbl), run_time=0.7)
+
+    # Drug enters through the membrane from outside and travels to the target.
+    drug = _mol_image(drug_name, mol_dir, height=1.2) or H.molecule_glyph()
+    entry = cell.center + np.array([-cell.width * 0.5 - 0.8, cell.height * 0.28, 0])
+    drug.move_to(entry)
+    d_lbl = H.label(drug_name, color=P.INK, scale=0.4, weight="BOLD").next_to(drug, UP, buff=0.12)
+    scene.play(FadeIn(drug), FadeIn(d_lbl), run_time=0.6)
+    # cross the membrane
+    membrane_pt = cell.center + np.array([-cell.width * 0.42, cell.height * 0.16, 0])
+    scene.play(drug.animate.scale(0.85).move_to(membrane_pt),
+               d_lbl.animate.set_opacity(0), run_time=0.9,
+               rate_func=rate_functions.ease_in_out_sine)
+    scene.play(drug.animate.move_to(tpos + np.array([-0.1, -0.1, 0])).scale(0.7),
+               run_time=1.1, rate_func=rate_functions.ease_in_out_sine)
+
+    # Target responds — colour + pulse (conformational change).
+    col = P.GOOD if good else P.WARN
+    scene.play(target_dot.animate.set_fill(col, opacity=1).scale(1.15),
+               Flash(tpos, color=col, num_lines=16, flash_radius=1.0), run_time=0.8)
+    verb = {"inhibits": "inhibited", "blocks": "blocked", "activates": "activated",
+            "opens": "opened"}.get(action, "changed")
+    state = H.chip(f"{target} {verb}", color=col, scale=0.4)\
+        .next_to(target_dot, DOWN, buff=0.22)
+    scene.play(FadeIn(state), run_time=0.5)
+
+    # Downstream molecules produced (or reduced) with motion.
+    produces = params.get("produces") if isinstance(params.get("produces"), list) else None
+    consumes = params.get("consumes") if isinstance(params.get("consumes"), list) else None
+    if produces:
+        made = Group()  # Group (not VGroup) so real-molecule ImageMobjects fit.
+        for i, mname in enumerate([str(x) for x in produces][:3]):
+            img = _mol_image(mname, mol_dir, height=0.7)
+            unit = img if img is not None else H.particle(P.GOOD, "#3fa06a", 0.14)
+            unit.move_to(tpos)
+            made.add(unit)
+        scene.add(made)
+        scene.play(*[u.animate.move_to(tpos + np.array([np.cos(i) * 2.2, np.sin(i * 2) * 1.4, 0]))
+                     for i, u in enumerate(made)], run_time=1.1)
+    if consumes:
+        # Fade some diffusers to show consumption/reduction.
+        scene.play(*[diffusers[k].animate.set_opacity(0.15) for k in range(0, len(diffusers), 2)],
+                   run_time=0.9)
+
+    if result:
+        res = H.chip(result, color=P.GOOD, scale=0.5).to_edge(DOWN, buff=0.4)
+        scene.play(FadeIn(res, shift=UP * 0.15), run_time=0.7)
+    # Let the ambient motion breathe.
+    scene.wait(0.4)
+    diffusers.clear_updaters()
+
+
 def _mol_image(name, mol_dir, height=2.0):
     """Render a real molecular structure to an ImageMobject, or None."""
     if not name:
@@ -90,14 +175,14 @@ def build_molecular_binding(scene, params, mol_dir):
     tcol = {"enzyme": ("#6a5a8a", "#463a63"), "receptor": ("#3a5a4a", "#294436"),
             "channel": ("#4a6a8a", "#35506a"), "transporter": ("#8a6552", "#63483a")}.get(
         ttype, ("#6a5a8a", "#463a63"))
-    protein = _protein(ttype, tcol[0], tcol[1], width=3.0).shift(RIGHT * 2.6)
+    protein = _protein(ttype, tcol[0], tcol[1], width=3.0).shift(RIGHT * 1.3)
     t_lbl = H.label(target, color=P.INK, scale=0.46, weight="BOLD").next_to(protein, DOWN, buff=0.3)
     ttag = H.label(ttype, color=P.MUTE, scale=0.32).next_to(t_lbl, DOWN, buff=0.1)
     scene.play(FadeIn(protein), FadeIn(t_lbl), FadeIn(ttag), run_time=0.9)
 
     drug = _mol_image(drug_name, mol_dir, height=1.7) or H.molecule_glyph()
-    drug.move_to(LEFT * 4 + UP * 0.4)
-    d_lbl = H.label(drug_name, color=P.DRUG, scale=0.44, weight="BOLD").next_to(drug, DOWN, buff=0.2)
+    drug.move_to(LEFT * 4.2 + UP * 0.4)
+    d_lbl = H.label(drug_name, color=P.INK, scale=0.44, weight="BOLD").next_to(drug, DOWN, buff=0.2)
     if isinstance(drug, ImageMobject):
         scene.play(FadeIn(drug), FadeIn(d_lbl), run_time=0.7)
     else:
@@ -115,8 +200,8 @@ def build_molecular_binding(scene, params, mol_dir):
                Flash(cleft_pt, color=col, num_lines=16, flash_radius=1.0), run_time=0.9)
     verb = {"inhibits": "inhibited", "blocks": "blocked", "activates": "activated",
             "opens": "opened"}.get(effect, "affected")
-    res = H.label(f"{target} {verb}", color=col, scale=0.5, weight="BOLD").to_edge(DOWN, buff=0.5)
-    scene.play(Write(res), run_time=0.7)
+    res = H.chip(f"{target} {verb}", color=col, scale=0.5).to_edge(DOWN, buff=0.45)
+    scene.play(FadeIn(res, shift=UP * 0.15), run_time=0.7)
 
 
 def build_enzyme_reaction(scene, params, mol_dir):
@@ -158,18 +243,18 @@ def build_enzyme_reaction(scene, params, mol_dir):
                    a2.animate.set_opacity(0.15), prod.animate.set_opacity(0.2),
                    prod_lbl.animate.set_opacity(0.2),
                    Flash(enz.get_center(), color=P.WARN, flash_radius=1.1), run_time=0.9)
-        res = H.label(f"{enzyme} blocked — less {prod_name or 'product'}",
-                      color=P.GOOD, scale=0.46, weight="BOLD").to_edge(DOWN, buff=0.5)
-        scene.play(Write(res), run_time=0.7)
+        res = H.chip(f"{enzyme} blocked — less {prod_name or 'product'}",
+                     color=P.GOOD, scale=0.46).to_edge(DOWN, buff=0.45)
+        scene.play(FadeIn(res, shift=UP * 0.15), run_time=0.7)
     else:
         # Substrate flows through the enzyme and becomes product.
         flow = sub.copy()
         scene.add(flow)
         scene.play(flow.animate.move_to(enz.get_center()).scale(0.5), run_time=0.9)
         scene.play(flow.animate.move_to(prod.get_center()).set_opacity(0), run_time=0.9)
-        res = H.label(f"{enzyme} converts {sub_name or 'substrate'} → {prod_name or 'product'}",
-                      color=P.GOOD, scale=0.42, weight="BOLD").to_edge(DOWN, buff=0.5)
-        scene.play(Write(res), run_time=0.7)
+        res = H.chip(f"{enzyme} converts {sub_name or 'substrate'} → {prod_name or 'product'}",
+                     color=P.GOOD, scale=0.42).to_edge(DOWN, buff=0.45)
+        scene.play(FadeIn(res, shift=UP * 0.15), run_time=0.7)
 
 
 def build_signaling_cascade(scene, params, mol_dir):
@@ -187,42 +272,50 @@ def build_signaling_cascade(scene, params, mol_dir):
         else:
             norm.append((str(nd), None))
     n = len(norm)
-    xs = np.linspace(-5.2, 5.2, n)
-    mobs, labels = [], VGroup()
+    span = min(5.2, 1.6 + 1.6 * n) if n > 1 else 0.0
+    xs = np.linspace(-span, span, n) if n > 1 else np.array([0.0])
+    mobs, labels = [], []
     for x, (label, mol_name) in zip(xs, norm):
-        img = _mol_image(mol_name, mol_dir, height=1.0) if mol_name else None
+        img = _mol_image(mol_name, mol_dir, height=1.2) if mol_name else None
         if img is not None:
-            img.move_to([x, 0.4, 0])
-            node = img
+            # Seat the real molecule on a bright disc so it reads on any theme.
+            disc = Circle(radius=0.95).set_fill("#1a2a44", opacity=1).set_stroke(P.DRUG, width=4)
+            img.move_to(disc.get_center())
+            node = Group(disc, img).move_to([x, 0.5, 0])
         else:
-            node = Circle(radius=0.5).set_fill(P.PANEL, opacity=1).set_stroke(P.MUTE, width=3)\
-                .move_to([x, 0.4, 0])
-        lbl = H.label(label, color=P.INK, scale=0.32, weight="BOLD")
-        if lbl.width > 2.0:
-            lbl.scale(2.0 / lbl.width)
-        lbl.next_to([x, -0.6, 0], DOWN, buff=0.05)
-        mobs.append(node); labels.add(lbl)
-    scene.play(*[FadeIn(m) if isinstance(m, ImageMobject) else GrowFromCenter(m) for m in mobs][:1], run_time=0.4)
-    scene.play(LaggedStart(*[(FadeIn(m) if isinstance(m, ImageMobject) else GrowFromCenter(m)) for m in mobs],
-                           lag_ratio=0.15), LaggedStart(*[FadeIn(l) for l in labels], lag_ratio=0.15),
+            node = Circle(radius=0.66).set_fill(P.DRUG, opacity=1).set_stroke(P.INK, width=3)\
+                .move_to([x, 0.5, 0])
+        lbl = H.label(label, color=P.INK, scale=0.34, weight="BOLD")
+        if lbl.width > 2.3:
+            lbl.scale(2.3 / lbl.width)
+        lbl.next_to([x, -0.75, 0], DOWN, buff=0.05)
+        mobs.append(node); labels.append(lbl)
+    scene.play(LaggedStart(*[GrowFromCenter(m) for m in mobs], lag_ratio=0.15),
+               LaggedStart(*[FadeIn(l) for l in labels], lag_ratio=0.15),
                run_time=1.2)
-    arrows = VGroup(*[Arrow([xs[i], 0.4, 0], [xs[i + 1], 0.4, 0], color=P.MUTE, buff=0.6,
-                            stroke_width=4) for i in range(n - 1)])
+    arrows = VGroup(*[Arrow([xs[i], 0.5, 0], [xs[i + 1], 0.5, 0], color=P.INK, buff=1.05,
+                            stroke_width=5) for i in range(n - 1)])
     # Activation propagates along the chain.
-    pulse = Circle(radius=0.6).set_stroke(P.GOOD, width=4).set_fill(opacity=0)\
+    pulse = Circle(radius=1.05).set_stroke(P.GOOD, width=5).set_fill(opacity=0)\
         .move_to(mobs[0].get_center())
     scene.add(pulse)
     for i in range(n):
         anims = [pulse.animate.move_to(mobs[i].get_center())]
         if i < n - 1:
             anims.append(GrowArrow(arrows[i]))
-        scene.play(*anims, Flash(mobs[i].get_center(), color=P.GOOD, flash_radius=0.7),
+        scene.play(*anims, Flash(mobs[i].get_center(), color=P.GOOD, flash_radius=1.0),
                    run_time=0.6)
     scene.play(FadeOut(pulse), run_time=0.3)
-    eff = _txt(params, "effect", "result")
+    # Result line: turn a bare state word ("down"/"up") into a readable phrase.
+    eff = _txt(params, "effect", "result", "resultLabel")
+    state_words = {"down": "dialed down", "up": "dialed up", "on": "switched on",
+                   "off": "switched off", "": ""}
+    if eff.lower() in state_words:
+        last = norm[-1][0] if norm else ""
+        eff = f"{last} {state_words[eff.lower()]}".strip() if last else state_words.get(eff.lower(), "")
     if eff:
-        res = H.label(eff, color=P.GOOD, scale=0.44, weight="BOLD").to_edge(DOWN, buff=0.5)
-        scene.play(Write(res), run_time=0.6)
+        res = H.chip(eff, color=P.GOOD, scale=0.46).to_edge(DOWN, buff=0.45)
+        scene.play(FadeIn(res, shift=UP * 0.15), run_time=0.6)
 
 
 def build_side_effect_mechanism(scene, params, mol_dir):
@@ -333,7 +426,7 @@ def build_molecule_intro(scene, params, mol_dir):
     else:
         mol = H.molecule_glyph()
     mol.move_to(ORIGIN + UP * 0.3)
-    nm = H.label(name, color=P.DRUG, scale=0.6, weight="BOLD").next_to(mol, DOWN, buff=0.3)
+    nm = H.label(name, color=P.INK, scale=0.6, weight="BOLD").next_to(mol, DOWN, buff=0.3)
     cap = H.label(caption, color=P.MUTE, scale=0.36).next_to(nm, DOWN, buff=0.12)
     # Larger, and animate it in with a slow rotate/scale so it reads as a
     # real molecule arriving, not a static logo.
@@ -741,6 +834,7 @@ REGISTRY = {
     "two_panel_compare": build_two_panel_compare,
     "drug_interactions": build_drug_interactions,
     "how_to_take": build_how_to_take,
+    "cell_mechanism": build_cell_mechanism,
     "molecular_binding": build_molecular_binding,
     "enzyme_reaction": build_enzyme_reaction,
     "signaling_cascade": build_signaling_cascade,

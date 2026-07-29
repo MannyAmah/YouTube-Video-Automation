@@ -240,6 +240,13 @@ fill its params. Every scene must actually SHOW the process, not just label it.
       Side effects as friendly signposts.
 - two_panel_compare params: {title?, leftTitle, rightTitle, leftNote?, rightNote?}
       Before/after or with/without comparison.
+- cell_mechanism   params: {title?, drugName, targetLabel, targetLocation: "membrane"|"cytoplasm"|"nucleus"|"mitochondrion", action: "inhibits"|"activates"|"blocks"|"opens", produces?: [moleculeNames], consumes?: [moleculeNames], resultLabel}
+      THE CENTERPIECE. A detailed living cell (real membrane, nucleus,
+      mitochondria, ER, ribosomes, diffusing molecules) where the drug enters,
+      travels to its target at the correct LOCATION, the target responds, and
+      real downstream molecules are produced/consumed. Use this for the main
+      mechanism, with the REAL target, its real location in the cell, and the
+      real molecules made/used (produces/consumes as real names like ATP, AMP).
 - molecular_binding params: {title?, drugName, targetLabel, targetType: "enzyme"|"receptor"|"channel"|"transporter", effect: "inhibits"|"blocks"|"activates"|"opens"}
       THE KEY MECHANISM SCENE. Renders the drug's REAL molecular structure
       docking into the named target's active site. Use the REAL target from
@@ -266,8 +273,11 @@ fill its params. Every scene must actually SHOW the process, not just label it.
 - outro_card       params: {line1, line2}
 
 Match the primitive to the biology. This is a REAL biological simulation
-channel — for anything about HOW the drug works at the molecular level,
-PREFER the real-molecule primitives that draw actual chemical structures:
+channel — the MECHANISM is the heart of the video and deserves the MOST
+scenes. Simulate it richly, step by step:
+  the main "how it works inside the cell" step -> cell_mechanism (the detailed
+    living-cell simulation; give the REAL target, its real cell LOCATION, and
+    the real molecules produced/consumed)
   where/when the drug binds + what happens -> molecular_binding (REAL target name)
   a named enzyme turning a substrate into a product -> enzyme_reaction (REAL substrate/product/drug names)
   an intracellular signalling chain -> signaling_cascade (REAL molecule names like ATP/AMP/cAMP)
@@ -295,11 +305,33 @@ The "choices" array MUST have EXACTLY one entry per numbered scene below, in
 order. Do not add, drop, or reorder. You choose only the visual — the
 narration is fixed.`;
 
+/**
+ * The real-molecule biology primitives — these render actual chemical
+ * structures inside a living cell and are the heart of the channel.
+ */
+export const REAL_BIOLOGY_PRIMITIVES = [
+  'cell_mechanism',
+  'molecular_binding',
+  'enzyme_reaction',
+  'signaling_cascade',
+  'side_effect_mechanism',
+] as const;
+
+/**
+ * Minimum number of real-biology scenes required for a video of `sceneCount`
+ * scenes. Scales with length: ~28% of scenes, floored at 4, so even a short
+ * video simulates the mechanism across several real-molecule scenes.
+ */
+export function bioFloorFor(sceneCount: number): number {
+  return Math.min(sceneCount, Math.max(4, Math.round(sceneCount * 0.28)));
+}
+
 export function buildVisualChoicesPrompt(
   chunks: { id: string; sectionId: string; narration: string }[],
   script: Script,
   medicationName: string,
 ): { system: string; user: string } {
+  const bioFloor = bioFloorFor(chunks.length);
   const system = `${CHANNEL_VOICE}
 
 You are the visual director for a PROGRAMMATIC ANIMATION engine (3Blue1Brown
@@ -314,14 +346,28 @@ Rules:
   concept_card ONLY when nothing else fits (aim for very few — ideally none
   outside the disclaimer). Even a general sentence about what the drug does
   can usually be a bloodstream_level, organ_action, gauge, or two_panel_compare.
-- This is a REAL biological simulation channel. When the narration is about
-  how the drug works at the molecular level, PREFER the real-molecule
-  primitives that draw actual chemical structures: molecular_binding (where/
-  when it binds + what happens), enzyme_reaction (substrate->enzyme->product),
-  signaling_cascade (ATP/AMP/cAMP...), side_effect_mechanism (why an adverse
-  effect develops). Pass the REAL molecule and target NAMES from the narration
+- THIS IS A REAL BIOLOGICAL SIMULATION CHANNEL. The single most important
+  requirement: at LEAST ${bioFloor} of your ${chunks.length} choices MUST be
+  real-molecule biology primitives — cell_mechanism, molecular_binding,
+  enzyme_reaction, signaling_cascade, or side_effect_mechanism. These draw the
+  drug's ACTUAL chemical structure and the ACTUAL molecules it acts on inside a
+  living cell. A video with only one or two of these is a FAILURE.
+- Spend the biology primitives on the mechanism the way a teacher would, one
+  facet per scene, so the "how it works" idea is simulated across SEVERAL
+  scenes, not compressed into one:
+    * the main "inside the cell" step -> cell_mechanism (real target at its
+      real location; real molecules produced/consumed)
+    * where + when the drug binds, and what changes -> molecular_binding
+    * a named enzyme turning substrate into product (and how the drug stops
+      it) -> enzyme_reaction
+    * the intracellular signalling chain it triggers -> signaling_cascade
+    * WHY each side/adverse effect physically develops -> side_effect_mechanism
+  Whenever a scene's narration touches how the drug works, why it works, what
+  it binds, what it makes the cell do, or why a side effect happens, choose one
+  of these real-biology primitives — NOT a schematic gauge/organ/panel.
+- Pass the REAL molecule and target NAMES from the narration and evidence
   (drugName, targetLabel, substrateName, productName, moleculeName) so the true
-  structures are rendered.
+  structures are rendered. Never invent a fake target.
 - The params' visible labels must match what the narration says, so the
   picture agrees with the spoken words.
 - First scene: title_card. Put a molecule_intro (name "${medicationName}")

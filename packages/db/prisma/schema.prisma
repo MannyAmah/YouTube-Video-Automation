@@ -56,7 +56,7 @@ model ContentBrief {
   medicationQuery   String
   format            String   @default("longform_16x9")
   angle             String   @default("complete_guide")
-  targetDurationSec Int      @default(420)
+  targetDurationSec Int      @default(360)
   audienceNote      String
   status            String   @default("open") // open | in_production | done | abandoned
   createdBy         String   @default("scheduler") // scheduler | admin

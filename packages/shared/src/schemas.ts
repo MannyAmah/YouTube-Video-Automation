@@ -51,7 +51,7 @@ export const VIDEO_FORMATS = ['longform_16x9'] as const;
 export const ContentBriefSchema = z.object({
   medicationQuery: z.string().min(1),
   format: z.enum(VIDEO_FORMATS).default('longform_16x9'),
-  targetDurationSec: z.number().int().min(300).max(660).default(420),
+  targetDurationSec: z.number().int().min(300).max(660).default(360),
   /**
    * The angle for this video. "complete_guide" covers development, mechanism,
    * uses, side effects, interactions, and how to take it — the channel's
@@ -158,6 +158,7 @@ export const ANIMATION_PRIMITIVES = [
   'drug_interactions',
   'how_to_take',
   // Real-biology mechanism primitives (render real molecular structures).
+  'cell_mechanism',
   'molecular_binding',
   'enzyme_reaction',
   'signaling_cascade',
